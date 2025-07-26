@@ -158,7 +158,7 @@ jobs:
           category: 'trivy-image-${{ matrix.module }}'
       
       - name: Run Grype vulnerability scanner
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v6
         with:
           image: 'local/${{ matrix.module }}:security-scan'
           format: sarif
