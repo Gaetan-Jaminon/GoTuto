@@ -1,5 +1,5 @@
 # Build stage - Using Red Hat UBI Go toolset
-FROM registry.access.redhat.com/ubi9/go-toolset:1.20 AS builder
+FROM registry.access.redhat.com/ubi9/go-toolset:9.6 AS builder
 
 # Switch to root for package installation
 USER 0
