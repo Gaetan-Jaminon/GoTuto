@@ -60,6 +60,9 @@ branches:
       
       # No restrictions on who can push (since it's a learning project)
       restrictions: null
+      
+      # Required conversation resolution before merging
+      required_conversation_resolution: false
 
   - name: develop
     protection:
