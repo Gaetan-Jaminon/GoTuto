@@ -1,0 +1,50 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: billing-api
+  namespace: billing
+  labels:
+    app: billing-api
+    app.kubernetes.io/name: billing-api
+    app.kubernetes.io/component: image
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+  - name: latest
+    annotations:
+      description: "Latest billing API image"
+      openshift.io/display-name: "Billing API"
+    from:
+      kind: DockerImage
+      name: billing-api:latest
+    importPolicy:
+      scheduled: false
+    referencePolicy:
+      type: Local
+
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: billing-migrations
+  namespace: billing
+  labels:
+    app: billing-migrations
+    app.kubernetes.io/name: billing-migrations
+    app.kubernetes.io/component: image
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+  - name: latest
+    annotations:
+      description: "Latest billing database migrations image"
+      openshift.io/display-name: "Billing DB Migrations"
+    from:
+      kind: DockerImage
+      name: billing-migrations:latest
+    importPolicy:
+      scheduled: false
+    referencePolicy:
+      type: Local

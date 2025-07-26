@@ -1,0 +1,65 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Tests
+*_test.go
+tests/
+testdata/
+coverage.out
+coverage.html
+
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Dependencies
+vendor/
+
+# Temporary files
+tmp/
+temp/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# CI/CD
+.github/
+
+# Deployment files
+deployments/
+openshift/
+
+# Local development
+docker-compose.yml
+docker-compose.*.yml
+
+# Test files
+Makefile.test

@@ -1,0 +1,15 @@
+# Test environment configuration
+
+server:
+  port: 8081 # Different port to avoid conflicts
+  mode: test
+  
+database:
+  host: localhost
+  name: billing_test
+  
+logging:
+  level: error # Only log errors during tests
+  
+pagination:
+  default_limit: 5 # Smaller for faster tests

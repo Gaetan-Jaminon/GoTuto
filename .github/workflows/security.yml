@@ -1,0 +1,342 @@
+name: Security Scanning
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'api/**'
+      - '.github/workflows/security.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'api/**'
+      - '.github/workflows/security.yml'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # Static code analysis
+  sast:
+    name: Static Application Security Testing
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        module:
+          - billing
+          - billing-dbmigrations
+    
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-security-${{ matrix.module }}-${{ hashFiles('api/${{ matrix.module }}/go.sum') }}
+      
+      - name: Install dependencies
+        working-directory: ./api/${{ matrix.module }}
+        run: go mod download
+      
+      - name: Run Gosec security scanner
+        uses: securecodewarrior/github-action-gosec@master
+        with:
+          args: '-fmt sarif -out gosec-${{ matrix.module }}.sarif ./api/${{ matrix.module }}/...'
+      
+      - name: Upload Gosec results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: gosec-${{ matrix.module }}.sarif
+          category: gosec-${{ matrix.module }}
+      
+      - name: Run govulncheck
+        working-directory: ./api/${{ matrix.module }}
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck -json ./... > govulncheck-${{ matrix.module }}.json || true
+      
+      - name: Upload vulnerability scan results
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-results-${{ matrix.module }}
+          path: |
+            gosec-${{ matrix.module }}.sarif
+            ./api/${{ matrix.module }}/govulncheck-${{ matrix.module }}.json
+
+  # Dependency scanning
+  dependency-scan:
+    name: Dependency Security Scanning
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      security-events: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner (filesystem)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: './api'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
+      
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-fs-results.sarif'
+          category: 'trivy-fs'
+
+  # Container image security scanning
+  container-scan:
+    name: Container Image Security Scanning
+    runs-on: ubuntu-latest
+    needs: [sast, dependency-scan]
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    
+    strategy:
+      matrix:
+        module:
+          - billing
+          - billing-dbmigrations
+    
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api/${{ matrix.module }}
+          load: true
+          tags: local/${{ matrix.module }}:security-scan
+          cache-from: type=gha
+      
+      - name: Run Trivy vulnerability scanner (image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'local/${{ matrix.module }}:security-scan'
+          format: 'sarif'
+          output: 'trivy-image-${{ matrix.module }}.sarif'
+      
+      - name: Upload Trivy image scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-image-${{ matrix.module }}.sarif'
+          category: 'trivy-image-${{ matrix.module }}'
+      
+      - name: Run Grype vulnerability scanner
+        uses: anchore/scan-action@v3
+        with:
+          image: 'local/${{ matrix.module }}:security-scan'
+          format: sarif
+          output-file: grype-${{ matrix.module }}.sarif
+      
+      - name: Upload Grype scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: grype-${{ matrix.module }}.sarif
+          category: 'grype-${{ matrix.module }}'
+
+  # License scanning
+  license-scan:
+    name: License Compliance Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses@latest
+      
+      - name: Scan billing module licenses
+        working-directory: ./api/billing
+        run: |
+          go-licenses csv ./... > licenses-billing.csv
+          go-licenses check ./...
+      
+      - name: Scan migrations module licenses
+        working-directory: ./api/billing-dbmigrations
+        run: |
+          go-licenses csv ./... > licenses-migrations.csv
+          go-licenses check ./...
+      
+      - name: Upload license reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-reports
+          path: |
+            ./api/billing/licenses-billing.csv
+            ./api/billing-dbmigrations/licenses-migrations.csv
+
+  # Security policy compliance
+  compliance-check:
+    name: Security Policy Compliance
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check for security policy
+        run: |
+          if [ ! -f SECURITY.md ]; then
+            echo "⚠️  SECURITY.md file not found"
+            echo "Creating basic security policy template..."
+            
+            cat > SECURITY.md << 'EOF'
+          # Security Policy
+          
+          ## Supported Versions
+          
+          | Version | Supported          |
+          | ------- | ------------------ |
+          | 1.x.x   | :white_check_mark: |
+          | < 1.0   | :x:                |
+          
+          ## Reporting a Vulnerability
+          
+          Please report security vulnerabilities by emailing security@example.com
+          or by creating a private security advisory on GitHub.
+          
+          ### Response Timeline
+          
+          - Initial response: 24 hours
+          - Status update: 7 days
+          - Resolution timeline varies based on severity
+          
+          ### Security Best Practices
+          
+          - All secrets must be stored in environment variables
+          - Database connections must use TLS
+          - API endpoints must implement rate limiting
+          - Container images run as non-root users
+          EOF
+          
+            echo "✅ Created SECURITY.md template"
+          else
+            echo "✅ SECURITY.md exists"
+          fi
+      
+      - name: Check Dockerfile security practices
+        run: |
+          echo "🔍 Checking Dockerfile security practices..."
+          
+          # Check for non-root user
+          for dockerfile in api/*/Dockerfile; do
+            if [ -f "$dockerfile" ]; then
+              echo "Checking $dockerfile..."
+              
+              if ! grep -q "USER.*[0-9]" "$dockerfile"; then
+                echo "❌ $dockerfile: No non-root USER directive found"
+                exit 1
+              else
+                echo "✅ $dockerfile: Non-root user configured"
+              fi
+              
+              if grep -q "ADD.*http" "$dockerfile"; then
+                echo "❌ $dockerfile: Remote ADD found (security risk)"
+                exit 1
+              else
+                echo "✅ $dockerfile: No remote ADD instructions"
+              fi
+            fi
+          done
+
+  # Generate security report
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [sast, dependency-scan, license-scan, compliance-check]
+    if: always()
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: ./security-artifacts
+      
+      - name: Generate security summary
+        run: |
+          echo "# Security Scan Summary" > security-summary.md
+          echo "" >> security-summary.md
+          echo "**Scan Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> security-summary.md
+          echo "**Commit:** ${{ github.sha }}" >> security-summary.md
+          echo "" >> security-summary.md
+          
+          echo "## Scan Results" >> security-summary.md
+          echo "" >> security-summary.md
+          echo "| Check | Status |" >> security-summary.md
+          echo "|-------|--------|" >> security-summary.md
+          echo "| SAST (Gosec) | ${{ needs.sast.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> security-summary.md
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> security-summary.md
+          echo "| License Scan | ${{ needs.license-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> security-summary.md
+          echo "| Compliance Check | ${{ needs.compliance-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> security-summary.md
+          echo "" >> security-summary.md
+          
+          if ls ./security-artifacts/security-results-*/govulncheck-*.json 1> /dev/null 2>&1; then
+            echo "## Vulnerability Details" >> security-summary.md
+            echo "" >> security-summary.md
+            echo "See uploaded artifacts for detailed vulnerability reports." >> security-summary.md
+          fi
+          
+          cat security-summary.md
+      
+      - name: Upload security summary
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-summary
+          path: security-summary.md
+      
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('security-summary.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔒 Security Scan Results\n\n${summary}`
+            });

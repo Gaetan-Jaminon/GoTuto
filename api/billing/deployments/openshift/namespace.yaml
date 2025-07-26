@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: billing
+  labels:
+    name: billing
+    app.kubernetes.io/name: billing
+    app.kubernetes.io/component: namespace
+  annotations:
+    openshift.io/display-name: "Billing Service"
+    openshift.io/description: "Billing microservice for client and invoice management"

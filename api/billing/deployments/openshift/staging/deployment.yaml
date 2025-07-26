@@ -1,0 +1,220 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-api
+  namespace: billing-staging
+  labels:
+    app: billing-api
+    app.kubernetes.io/name: billing-api
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/environment: staging
+spec:
+  replicas: 2  # Reduced for staging
+  selector:
+    matchLabels:
+      app: billing-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        app: billing-api
+      annotations:
+        # Force pod recreation when config changes
+        kubectl.kubernetes.io/restartedAt: ""
+    spec:
+      serviceAccountName: billing-api
+      initContainers:
+      # Run migrations before starting the app
+      - name: migrate
+        image: ghcr.io/gaetan-jaminon/gotuto/billing-dbmigrations:latest
+        imagePullPolicy: Always
+        command: ["billing-migrate", "up"]
+        env:
+        - name: APP_ENV
+          value: "staging"
+        - name: BILLING_MIGRATE_DATABASE_HOST
+          value: "postgres-service"
+        - name: BILLING_MIGRATE_DATABASE_PORT
+          value: "5432"
+        - name: BILLING_MIGRATE_DATABASE_USER
+          value: "postgres"
+        - name: BILLING_MIGRATE_DATABASE_NAME
+          value: "billing_staging"
+        - name: BILLING_MIGRATE_DATABASE_SSLMODE
+          value: "require"
+        - name: BILLING_MIGRATE_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: billing-secrets
+              key: BILLING_MIGRATE_DATABASE_PASSWORD
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+      - name: api
+        image: ghcr.io/gaetan-jaminon/gotuto/billing:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        env:
+        - name: APP_ENV
+          value: "staging"
+        - name: BILLING_DATABASE_HOST
+          value: "postgres-service"
+        - name: BILLING_DATABASE_PORT
+          value: "5432"
+        - name: BILLING_DATABASE_USERNAME
+          value: "postgres"
+        - name: BILLING_DATABASE_NAME
+          value: "billing_staging"
+        - name: BILLING_DATABASE_SSL_MODE
+          value: "require"
+        - name: BILLING_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: billing-secrets
+              key: BILLING_DATABASE_PASSWORD
+        # Staging specific config
+        - name: BILLING_LOG_LEVEL
+          value: "debug"
+        - name: BILLING_DEBUG_MODE
+          value: "true"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+      volumes:
+      - name: config
+        configMap:
+          name: billing-config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-migrations
+  namespace: billing-staging
+  labels:
+    app: billing-migrations
+    app.kubernetes.io/name: billing-migrations
+    app.kubernetes.io/component: database
+    app.kubernetes.io/environment: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: billing-migrations
+  template:
+    metadata:
+      labels:
+        app: billing-migrations
+    spec:
+      serviceAccountName: billing-migrations
+      containers:
+      - name: migrations
+        image: ghcr.io/gaetan-jaminon/gotuto/billing-dbmigrations:latest
+        imagePullPolicy: Always
+        command: ["billing-health"]  # Health server for migration status
+        ports:
+        - containerPort: 8081
+          protocol: TCP
+        env:
+        - name: APP_ENV
+          value: "staging"
+        - name: BILLING_MIGRATE_DATABASE_HOST
+          value: "postgres-service"
+        - name: BILLING_MIGRATE_DATABASE_PORT
+          value: "5432"
+        - name: BILLING_MIGRATE_DATABASE_USER
+          value: "postgres"
+        - name: BILLING_MIGRATE_DATABASE_NAME
+          value: "billing_staging"
+        - name: BILLING_MIGRATE_DATABASE_SSLMODE
+          value: "require"
+        - name: BILLING_MIGRATE_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: billing-secrets
+              key: BILLING_MIGRATE_DATABASE_PASSWORD
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "128Mi"
+            cpu: "50m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+            scheme: HTTP
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+            scheme: HTTP
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault

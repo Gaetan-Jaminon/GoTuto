@@ -1,0 +1,131 @@
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  name: billing-api
+  namespace: billing
+  labels:
+    app: billing-api
+    app.kubernetes.io/name: billing-api
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 3
+  selector:
+    app: billing-api
+    deploymentconfig: billing-api
+  strategy:
+    type: Rolling
+    rollingParams:
+      updatePeriodSeconds: 1
+      intervalSeconds: 1
+      timeoutSeconds: 600
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        app: billing-api
+        deploymentconfig: billing-api
+    spec:
+      initContainers:
+      # Run migrations before starting the app
+      - name: migrate
+        image: ghcr.io/gaetan-jaminon/gotuto/billing-dbmigrations:latest
+        imagePullPolicy: Always
+        command: ["billing-migrate", "up"]
+        env:
+        - name: APP_ENV
+          value: "prod"
+        - name: BILLING_MIGRATE_DATABASE_HOST
+          value: "postgres-service"
+        - name: BILLING_MIGRATE_DATABASE_PORT
+          value: "5432"
+        - name: BILLING_MIGRATE_DATABASE_USER
+          value: "postgres"
+        - name: BILLING_MIGRATE_DATABASE_NAME
+          value: "billing"
+        - name: BILLING_MIGRATE_DATABASE_SSLMODE
+          value: "require"
+        - name: BILLING_MIGRATE_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: billing-secrets
+              key: BILLING_MIGRATE_DATABASE_PASSWORD
+        volumeMounts:
+        - name: migrations
+          mountPath: /app/migrations
+          readOnly: true
+      containers:
+      - name: api
+        image: ghcr.io/gaetan-jaminon/gotuto/billing:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        env:
+        - name: APP_ENV
+          value: "prod"
+        - name: BILLING_DATABASE_HOST
+          value: "postgres-service"
+        - name: BILLING_DATABASE_PORT
+          value: "5432"
+        - name: BILLING_DATABASE_USERNAME
+          value: "postgres"
+        - name: BILLING_DATABASE_NAME
+          value: "billing"
+        - name: BILLING_DATABASE_SSL_MODE
+          value: "require"
+        - name: BILLING_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: billing-secrets
+              key: BILLING_DATABASE_PASSWORD
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        # Security context for OpenShift
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+          seccompProfile:
+            type: RuntimeDefault
+      volumes:
+      - name: config
+        configMap:
+          name: billing-config
+      - name: migrations
+        emptyDir: {}
+  triggers:
+  - type: ConfigChange
+  # Note: ImageChange triggers removed as we're using external registry (GitHub Container Registry)
+  # Images will be updated via CI/CD pipeline using 'oc set image' commands

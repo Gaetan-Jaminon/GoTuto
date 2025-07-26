@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: billing-api-service
+  namespace: billing
+  labels:
+    app: billing-api
+    app.kubernetes.io/name: billing-api
+    app.kubernetes.io/component: backend
+spec:
+  selector:
+    app: billing-api
+    deploymentconfig: billing-api
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8080
+  type: ClusterIP
+  sessionAffinity: None

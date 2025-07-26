@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "name": "Acme Corporation",
+    "email": "contact@acme.com",
+    "phone": "+1-555-0100",
+    "address": "123 Business Plaza, Suite 100, New York, NY 10001"
+  },
+  {
+    "id": 2,
+    "name": "Tech Solutions Inc",
+    "email": "info@techsolutions.com",
+    "phone": "+1-555-0200",
+    "address": "456 Innovation Drive, San Francisco, CA 94105"
+  },
+  {
+    "id": 3,
+    "name": "Global Enterprises",
+    "email": "admin@globalent.com",
+    "phone": "+1-555-0300",
+    "address": "789 Corporate Center, Chicago, IL 60601"
+  },
+  {
+    "id": 4,
+    "name": "StartUp Dynamics",
+    "email": "hello@startupdynamics.com",
+    "phone": "+1-555-0400",
+    "address": "321 Venture Street, Austin, TX 73301"
+  },
+  {
+    "id": 5,
+    "name": "Enterprise Systems",
+    "email": "contact@enterprisesys.com",
+    "phone": "+1-555-0500",
+    "address": "654 Business Park, Seattle, WA 98101"
+  }
+]

@@ -1,0 +1,152 @@
+# Test-specific Makefile for billing service
+
+# Go parameters
+GOCMD=go
+GOTEST=$(GOCMD) test
+GOCOVER=$(GOCMD) tool cover
+
+# Test parameters
+TEST_TIMEOUT=30s
+COVER_PROFILE=coverage.out
+COVER_HTML=coverage.html
+
+# Test commands
+.PHONY: test test-unit test-integration test-e2e test-coverage test-coverage-html test-bench test-race test-verbose clean-test
+
+# Run all tests
+test:
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) ./...
+
+# Run only unit tests (fast)
+test-unit:
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -short ./internal/...
+
+# Run only integration tests
+test-integration:
+	$(GOTEST) -v -timeout 60s -run Integration ./tests/integration/...
+
+# Run only end-to-end tests
+test-e2e:
+	$(GOTEST) -v -timeout 120s -run E2E ./tests/e2e/...
+
+# Run tests with coverage
+test-coverage:
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -coverprofile=$(COVER_PROFILE) ./...
+	$(GOCMD) tool cover -func=$(COVER_PROFILE)
+
+# Generate HTML coverage report
+test-coverage-html: test-coverage
+	$(GOCOVER) -html=$(COVER_PROFILE) -o $(COVER_HTML)
+	@echo "Coverage report generated: $(COVER_HTML)"
+
+# Run benchmarks
+test-bench:
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -bench=. -benchmem ./...
+
+# Run tests with race detection
+test-race:
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -race ./...
+
+# Run tests with verbose output and details
+test-verbose:
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -count=1 -failfast ./...
+
+# Run specific test
+test-run:
+	@if [ -z "$(TEST)" ]; then \
+		echo "Usage: make test-run TEST=TestName"; \
+		exit 1; \
+	fi
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -run $(TEST) ./...
+
+# Run tests in a specific package
+test-pkg:
+	@if [ -z "$(PKG)" ]; then \
+		echo "Usage: make test-pkg PKG=./internal/models"; \
+		exit 1; \
+	fi
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) $(PKG)
+
+# Clean test artifacts
+clean-test:
+	rm -f $(COVER_PROFILE) $(COVER_HTML)
+	$(GOCMD) clean -testcache
+
+# Setup test database (for integration tests)
+test-db-setup:
+	@echo "Setting up test database..."
+	@if [ -z "$(TEST_DB_NAME)" ]; then \
+		export TEST_DB_NAME=billing_test; \
+	fi
+	@echo "Creating database: $$TEST_DB_NAME"
+	# This would create a test database - adjust for your environment
+	# createdb $$TEST_DB_NAME || true
+
+# Teardown test database
+test-db-teardown:
+	@echo "Tearing down test database..."
+	@if [ -z "$(TEST_DB_NAME)" ]; then \
+		export TEST_DB_NAME=billing_test; \
+	fi
+	@echo "Dropping database: $$TEST_DB_NAME"
+	# dropdb $$TEST_DB_NAME || true
+
+# Watch tests (requires entr: brew install entr)
+test-watch:
+	find . -name "*.go" | entr -c make test-unit
+
+# Parallel tests
+test-parallel:
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -parallel 4 ./...
+
+# Test with different build tags
+test-tags:
+	$(GOTEST) -v -timeout $(TEST_TIMEOUT) -tags=integration ./...
+
+# Generate test data
+test-data:
+	@echo "Generating test data..."
+	# You could add scripts here to generate test fixtures
+
+# Lint tests
+test-lint:
+	golangci-lint run ./...
+
+# Security scan
+test-security:
+	gosec ./...
+
+# Test everything (comprehensive test suite)
+test-all: clean-test test-race test-coverage test-lint
+	@echo "All tests completed successfully!"
+
+# CI pipeline tests (what would run in CI/CD)
+test-ci: test-race test-coverage
+	@echo "CI tests completed"
+
+# Help
+help-test:
+	@echo "Available test commands:"
+	@echo "  test              - Run all tests"
+	@echo "  test-unit         - Run unit tests only (fast)"
+	@echo "  test-integration  - Run integration tests"
+	@echo "  test-e2e          - Run end-to-end tests"
+	@echo "  test-coverage     - Run tests with coverage"
+	@echo "  test-coverage-html- Generate HTML coverage report"
+	@echo "  test-bench        - Run benchmarks"
+	@echo "  test-race         - Run tests with race detection"
+	@echo "  test-verbose      - Run tests with verbose output"
+	@echo "  test-run TEST=X   - Run specific test"
+	@echo "  test-pkg PKG=X    - Run tests in specific package"
+	@echo "  test-watch        - Watch files and re-run tests"
+	@echo "  test-parallel     - Run tests in parallel"
+	@echo "  clean-test        - Clean test artifacts"
+	@echo "  test-all          - Run comprehensive test suite"
+	@echo "  test-ci           - Run CI pipeline tests"
+
+# Example usage:
+# make test                           # Run all tests
+# make test-unit                      # Fast unit tests only
+# make test-coverage-html             # Generate coverage report
+# make test-run TEST=TestGetClient    # Run specific test
+# make test-pkg PKG=./internal/models # Test specific package
