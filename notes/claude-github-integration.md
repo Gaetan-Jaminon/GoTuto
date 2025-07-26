@@ -13,7 +13,7 @@ This integration allows Claude to act as an AI pair programmer, reviewer, and as
 
 ## 📁 Current Workflow Files
 
-The integration consists of two GitHub Actions workflow files:
+The project includes four GitHub Actions workflow files that work together to provide a complete development experience:
 
 ### 1. `claude.yml` - On-Demand Claude Assistance
 
@@ -64,6 +64,142 @@ The integration consists of two GitHub Actions workflow files:
 - Catches common issues early
 - Educational feedback for developers
 - Reduces reviewer workload
+
+### 3. `ci.yml` - Continuous Integration (Build & Test)
+
+**Location**: `.github/workflows/ci.yml`
+
+**Purpose**: Comprehensive build, test, and quality checks for the Go microservices
+
+**Triggers**:
+- Push to `main` or `develop` branches (when `/api` files change)
+- Pull requests to `main` or `develop` branches (when `/api` files change)
+
+**What It Does**:
+- **Multi-module detection**: Automatically detects which Go modules changed
+- **Go testing**: Runs unit tests with PostgreSQL database
+- **Integration testing**: Database migration and integration tests
+- **Security scanning**: Basic vulnerability checks with Trivy
+- **Container builds**: Builds and pushes Docker images to GitHub Container Registry
+- **Quality gates**: Ensures all checks pass before allowing merges
+
+**Key Features**:
+- **Path-based triggers**: Only runs when API code changes
+- **PostgreSQL service**: Spins up test database automatically
+- **Multi-module support**: Handles both `billing` and `billing-dbmigrations`
+- **Caching**: Caches Go modules for faster builds
+- **Artifact uploads**: Saves test coverage reports
+
+**Jobs**:
+1. `detect-changes` - Determines which modules changed
+2. `test-billing` - Tests the main billing service
+3. `test-migrations` - Tests database migration tools
+4. `security-scan` - Basic security vulnerability scanning
+5. `build-images` - Builds and pushes container images
+6. `quality-gate` - Final check that all required jobs passed
+
+### 4. `dependabot-ci.yml` - Simplified Dependency CI
+
+**Location**: `.github/workflows/dependabot-ci.yml`
+
+**Purpose**: Lightweight CI specifically for Dependabot dependency update PRs
+
+**Triggers**:
+- Pull requests (only when authored by `dependabot[bot]`)
+
+**What It Does**:
+- **Dependency verification**: Downloads and verifies new dependencies
+- **Basic compilation**: Ensures code still compiles with updates
+- **Vulnerability checks**: Scans for known security issues
+- **Compatibility testing**: Basic tests without full database setup
+
+**Why Separate**:
+- Dependabot PRs have **limited permissions** and can't access full CI secrets
+- **Faster execution** for simple dependency updates
+- **Reduced complexity** - focuses only on compatibility checks
+- **Better success rate** - avoids issues with database setup in Dependabot context
+
+**Benefits**:
+- Quick feedback on dependency safety
+- Automatic vulnerability detection
+- Simplified approval process for minor updates
+
+## 🔄 Workflow Orchestration
+
+### How the Workflows Work Together
+
+The four workflows coordinate to provide a seamless development experience:
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Developer     │    │   Pull Request   │    │  Main Branch    │
+│   Creates PR    │───▶│   Triggered      │───▶│   Protected     │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │  Parallel Jobs   │
+                    │                  │
+                    │ • ci.yml         │
+                    │ • claude-review  │
+                    │ • dependabot-ci  │
+                    │   (if applicable)│
+                    └──────────────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │  All Checks Pass │
+                    │                  │
+                    │ ✅ Tests pass    │
+                    │ ✅ Builds work   │
+                    │ ✅ Security OK   │
+                    │ ✅ Claude review │
+                    └──────────────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │  Merge Allowed   │
+                    │                  │
+                    │ Branch protected │
+                    │ by settings.yml  │
+                    └──────────────────┘
+```
+
+### Typical Development Flow
+
+1. **Create Feature Branch**: `git checkout -b feature/new-endpoint`
+2. **Make Changes**: Edit Go code in `/api/billing` or `/api/billing-dbmigrations`
+3. **Push Changes**: `git push origin feature/new-endpoint`
+4. **Create PR**: GitHub automatically triggers workflows
+5. **Automated Checks Run**:
+   - `ci.yml` builds, tests, and scans your code
+   - `claude-code-review.yml` provides AI feedback
+   - `dependabot-ci.yml` runs if it's a dependency update
+6. **Review Process**:
+   - Check CI results for any failures
+   - Read Claude's review comments
+   - Address any issues or ask `@claude` for help
+7. **Merge**: Once all checks pass and review is approved
+8. **Cleanup**: Branch is automatically deleted
+
+### Branch Protection Integration
+
+The workflows integrate with branch protection rules defined in `.github/settings.yml`:
+
+#### Required Status Checks
+```yaml
+required_status_checks:
+  contexts:
+    - "Continuous Integration"           # ci.yml must pass
+    - "claude-review"                   # Claude review must complete
+    - "dependabot-check / dependabot-summary"  # Dependabot CI (if applicable)
+```
+
+#### Protection Rules
+- **No direct pushes** to `main` branch
+- **Pull requests required** for all changes
+- **Status checks must pass** before merge
+- **Admin override allowed** (for learning purposes)
 
 ## 🚀 How to Use the Integration
 
@@ -294,6 +430,64 @@ When CI fails:
 4. Apply fixes and re-run CI
 
 ## 🚨 Troubleshooting
+
+### Workflow-Specific Issues
+
+#### 1. CI Workflow (`ci.yml`) Problems
+**Symptoms**: Tests fail, builds don't complete, security scans error
+
+**Common Causes**:
+- PostgreSQL service not ready (wait longer)
+- Go module dependencies outdated (`go mod tidy`)
+- Missing environment variables
+- Path filters not matching changed files
+
+**Solutions**:
+```bash
+# Check workflow triggers
+git log --oneline -5  # See what changes triggered workflow
+
+# Update dependencies
+cd api/billing && go mod tidy
+cd api/billing-dbmigrations && go mod tidy
+
+# Test locally
+cd api/billing && go test ./...
+```
+
+#### 2. Dependabot CI Issues
+**Symptoms**: Dependabot PRs fail, dependency conflicts
+
+**Common Causes**:
+- Dependency incompatibilities
+- Breaking changes in new versions
+- Go module conflicts
+
+**Solutions**:
+- Check Dependabot PR description for breaking changes
+- Test locally: `go get [dependency]@[version]`
+- Use `@claude` to analyze the specific dependency update
+
+#### 3. Claude Workflows Not Triggering
+**Symptoms**: No automatic reviews, `@claude` mentions ignored
+
+**Common Causes**:
+- OAuth token expired or missing
+- Workflow file syntax errors
+- Trigger conditions not met
+
+**Solutions**:
+```bash
+# Check workflow syntax
+gh workflow list
+gh workflow view claude.yml
+
+# Verify OAuth token exists
+gh secret list | grep CLAUDE
+
+# Check recent workflow runs
+gh run list --workflow=claude.yml
+```
 
 ### Common Issues
 
