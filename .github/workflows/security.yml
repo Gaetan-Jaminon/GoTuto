@@ -73,7 +73,7 @@ jobs:
           govulncheck -json ./... > govulncheck-${{ matrix.module }}.json || true
       
       - name: Upload vulnerability scan results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-results-${{ matrix.module }}
           path: |
@@ -200,7 +200,7 @@ jobs:
           go-licenses check ./...
       
       - name: Upload license reports
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: license-reports
           path: |
@@ -321,7 +321,7 @@ jobs:
           cat security-summary.md
       
       - name: Upload security summary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: security-summary
           path: security-summary.md
