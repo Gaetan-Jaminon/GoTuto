@@ -162,7 +162,7 @@ jobs:
           echo "- \`ghcr.io/${{ github.repository }}/billing-dbmigrations:${{ needs.validate-release.outputs.version }}\`" >> CHANGELOG.md
       
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.validate-release.outputs.version }}
           name: Release ${{ needs.validate-release.outputs.version }}
