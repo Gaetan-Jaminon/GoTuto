@@ -1,0 +1,330 @@
+name: Continuous Deployment
+
+on:
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    types:
+      - completed
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # Deploy to staging after successful CI
+  deploy-staging:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop'
+    
+    environment:
+      name: staging
+      url: https://billing-staging.apps.openshift.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Install OpenShift CLI
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: 4.12
+
+      - name: Deploy to staging
+        run: |
+          # Login to OpenShift
+          oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }}
+          
+          # Create namespace if it doesn't exist
+          oc apply -f api/billing/deployments/openshift/staging/namespace.yaml
+          
+          # Apply base configurations
+          oc apply -f api/billing/deployments/openshift/secret.yaml -n billing-staging
+          oc apply -f api/billing/deployments/openshift/configmap.yaml -n billing-staging
+          oc apply -f api/billing/deployments/openshift/service.yaml -n billing-staging
+          oc apply -f api/billing/deployments/openshift/route.yaml -n billing-staging
+          
+          # Deploy applications with latest images
+          oc apply -f api/billing/deployments/openshift/staging/deployment.yaml
+          
+          # Update image tags to the latest build
+          SHA_SHORT=$(echo ${{ github.event.workflow_run.head_sha }} | cut -c1-7)
+          
+          oc set image deployment/billing-api \
+            api=${{ env.REGISTRY }}/${{ github.repository }}/billing:develop-${SHA_SHORT} \
+            -n billing-staging
+          
+          oc set image deployment/billing-api \
+            migrate=${{ env.REGISTRY }}/${{ github.repository }}/billing-dbmigrations:develop-${SHA_SHORT} \
+            -n billing-staging
+          
+          oc set image deployment/billing-migrations \
+            migrations=${{ env.REGISTRY }}/${{ github.repository }}/billing-dbmigrations:develop-${SHA_SHORT} \
+            -n billing-staging
+          
+          # Wait for deployment to complete
+          oc rollout status deployment/billing-api -n billing-staging --timeout=600s
+          oc rollout status deployment/billing-migrations -n billing-staging --timeout=300s
+          
+          echo "✅ Deployment to staging completed"
+
+      - name: Verify staging deployment
+        run: |
+          # Get the route and test the health endpoint
+          ROUTE=$(oc get route billing-api -n billing-staging -o jsonpath='{.spec.host}')
+          
+          # Wait for the service to be ready
+          sleep 30
+          
+          # Test health endpoint
+          for i in {1..5}; do
+            if curl -f -s https://$ROUTE/health; then
+              echo "✅ Staging health check passed"
+              break
+            fi
+            echo "⏳ Waiting for service to be ready (attempt $i/5)"
+            sleep 30
+          done
+          
+          # Test API endpoints
+          echo "🔍 Testing API endpoints..."
+          curl -f -s https://$ROUTE/api/v1/clients || echo "⚠️  Clients endpoint not responding"
+
+  # Run E2E tests against staging
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.event.workflow_run.head_branch == 'develop'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Install OpenShift CLI
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: 4.12
+
+      - name: Run E2E tests
+        working-directory: ./api/billing
+        env:
+          E2E_BASE_URL: https://billing-staging.apps.openshift.example.com
+          APP_ENV: e2e
+        run: |
+          # Get staging route
+          oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }}
+          ROUTE=$(oc get route billing-api -n billing-staging -o jsonpath='{.spec.host}')
+          export E2E_BASE_URL="https://$ROUTE"
+          
+          echo "🧪 Running E2E tests against $E2E_BASE_URL"
+          
+          # Run E2E tests
+          go test -v -tags=e2e ./tests/e2e/... -timeout=10m
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-test-results
+          path: api/billing/tests/e2e/*.log
+
+  # Deploy to production (main branch only, manual approval)
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, e2e-tests]
+    if: always() && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    
+    environment:
+      name: production
+      url: https://billing.apps.openshift.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Install OpenShift CLI
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: 4.12
+
+      - name: Deploy to production
+        run: |
+          # Login to OpenShift
+          oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }}
+          
+          # Create namespace if it doesn't exist
+          oc apply -f api/billing/deployments/openshift/production/namespace.yaml
+          
+          # Apply base configurations
+          oc apply -f api/billing/deployments/openshift/secret.yaml -n billing-production
+          oc apply -f api/billing/deployments/openshift/configmap.yaml -n billing-production
+          oc apply -f api/billing/deployments/openshift/service.yaml -n billing-production
+          oc apply -f api/billing/deployments/openshift/route.yaml -n billing-production
+          
+          # Deploy applications
+          oc apply -f api/billing/deployments/openshift/production/deployment.yaml
+          
+          # Update image tags to the latest build
+          SHA_SHORT=$(echo ${{ github.event.workflow_run.head_sha }} | cut -c1-7)
+          
+          oc set image deployment/billing-api \
+            api=${{ env.REGISTRY }}/${{ github.repository }}/billing:main-${SHA_SHORT} \
+            -n billing-production
+          
+          oc set image deployment/billing-api \
+            migrate=${{ env.REGISTRY }}/${{ github.repository }}/billing-dbmigrations:main-${SHA_SHORT} \
+            -n billing-production
+          
+          oc set image deployment/billing-migrations \
+            migrations=${{ env.REGISTRY }}/${{ github.repository }}/billing-dbmigrations:main-${SHA_SHORT} \
+            -n billing-production
+          
+          # Rolling update with careful monitoring
+          echo "🚀 Starting production deployment..."
+          
+          oc rollout status deployment/billing-migrations -n billing-production --timeout=300s
+          oc rollout status deployment/billing-api -n billing-production --timeout=600s
+          
+          echo "✅ Production deployment completed"
+
+      - name: Verify production deployment
+        run: |
+          # Get the route and test the health endpoint
+          ROUTE=$(oc get route billing-api -n billing-production -o jsonpath='{.spec.host}')
+          
+          # Wait for the service to be ready
+          sleep 60
+          
+          # Test health endpoint multiple times
+          for i in {1..10}; do
+            if curl -f -s https://$ROUTE/health; then
+              echo "✅ Production health check passed"
+              
+              # Test API endpoints
+              echo "🔍 Testing production API endpoints..."
+              curl -f -s https://$ROUTE/api/v1/clients || echo "⚠️  Clients endpoint not responding"
+              
+              exit 0
+            fi
+            echo "⏳ Waiting for production service to be ready (attempt $i/10)"
+            sleep 30
+          done
+          
+          echo "❌ Production health check failed"
+          exit 1
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "🔄 Rolling back production deployment..."
+          oc rollout undo deployment/billing-api -n billing-production
+          oc rollout undo deployment/billing-migrations -n billing-production
+          oc rollout status deployment/billing-api -n billing-production
+          echo "⏪ Rollback completed"
+
+  # Post-deployment verification
+  post-deployment:
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always() && github.event.workflow_run.head_branch == 'main'
+    
+    steps:
+      - name: Run smoke tests
+        run: |
+          echo "🔥 Running smoke tests..."
+          
+          # Install OpenShift CLI
+          curl -L https://github.com/openshift/okd/releases/download/4.12.0-0.okd-2023-04-16-041331/openshift-client-linux-4.12.0-0.okd-2023-04-16-041331.tar.gz | tar xz
+          sudo mv oc /usr/local/bin/
+          
+          # Login and get route
+          oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }}
+          ROUTE=$(oc get route billing-api -n billing-production -o jsonpath='{.spec.host}')
+          
+          # Comprehensive smoke tests
+          echo "Testing health endpoint..."
+          curl -f https://$ROUTE/health
+          
+          echo "Testing clients API..."
+          curl -f https://$ROUTE/api/v1/clients
+          
+          echo "Testing invoices API..."
+          curl -f https://$ROUTE/api/v1/invoices
+          
+          echo "✅ All smoke tests passed"
+
+      - name: Update deployment status
+        if: success()
+        run: |
+          echo "🎉 Production deployment successful!"
+          echo "🔗 Application URL: https://billing.apps.openshift.example.com"
+          echo "📊 Monitor the application metrics and logs"
+
+  # Cleanup and notifications
+  notify-deployment:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, e2e-tests, deploy-production, post-deployment]
+    if: always()
+    
+    steps:
+      - name: Deployment summary
+        run: |
+          echo "## 🚀 Deployment Summary"
+          echo ""
+          echo "**Branch:** ${{ github.event.workflow_run.head_branch }}"
+          echo "**Commit:** ${{ github.event.workflow_run.head_sha }}"
+          echo ""
+          echo "**Results:**"
+          echo "- Staging Deploy: ${{ needs.deploy-staging.result }}"
+          echo "- E2E Tests: ${{ needs.e2e-tests.result }}"
+          echo "- Production Deploy: ${{ needs.deploy-production.result }}"
+          echo "- Post-deployment: ${{ needs.post-deployment.result }}"
+          echo ""
+          
+          if [[ "${{ needs.deploy-production.result }}" == "success" ]]; then
+            echo "✅ **Production deployment successful!**"
+            echo "🔗 **Application URL:** https://billing.apps.openshift.example.com"
+          elif [[ "${{ needs.deploy-staging.result }}" == "success" ]]; then
+            echo "✅ **Staging deployment successful!**"
+            echo "🔗 **Staging URL:** https://billing-staging.apps.openshift.example.com"
+          else
+            echo "❌ **Deployment failed - check logs for details**"
+          fi
+
+  # Emergency rollback workflow (manual trigger)
+  emergency-rollback:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    
+    environment:
+      name: production
+    
+    steps:
+      - name: Emergency rollback
+        run: |
+          echo "🚨 EMERGENCY ROLLBACK INITIATED"
+          
+          # Install OpenShift CLI
+          curl -L https://github.com/openshift/okd/releases/download/4.12.0-0.okd-2023-04-16-041331/openshift-client-linux-4.12.0-0.okd-2023-04-16-041331.tar.gz | tar xz
+          sudo mv oc /usr/local/bin/
+          
+          # Login and rollback
+          oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }}
+          
+          oc rollout undo deployment/billing-api -n billing-production
+          oc rollout undo deployment/billing-migrations -n billing-production
+          
+          oc rollout status deployment/billing-api -n billing-production
+          oc rollout status deployment/billing-migrations -n billing-production
+          
+          echo "⏪ Emergency rollback completed"

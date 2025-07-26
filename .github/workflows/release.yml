@@ -1,0 +1,236 @@
+name: Release Management
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # Validate release
+  validate-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Check if it's a pre-release (contains alpha, beta, rc)
+          if [[ "$VERSION" =~ (alpha|beta|rc) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+            echo "Invalid version format: $VERSION"
+            echo "Expected format: v1.2.3 or v1.2.3-beta.1"
+            exit 1
+          fi
+
+  # Build release artifacts
+  build-release:
+    runs-on: ubuntu-latest
+    needs: validate-release
+    
+    strategy:
+      matrix:
+        module:
+          - billing
+          - billing-dbmigrations
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.module }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.validate-release.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.validate-release.outputs.version }}
+            type=semver,pattern={{major}},value=${{ needs.validate-release.outputs.version }},enable=${{ needs.validate-release.outputs.is_prerelease == 'false' }}
+      
+      - name: Build and push release image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api/${{ matrix.module }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.module }}:${{ needs.validate-release.outputs.version }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.module }}.spdx.json
+      
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom-${{ matrix.module }}
+          path: sbom-${{ matrix.module }}.spdx.json
+
+  # Create GitHub release
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [validate-release, build-release]
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download SBOMs
+        uses: actions/download-artifact@v3
+        with:
+          path: ./artifacts
+      
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          
+          if [ -n "$PREVIOUS_TAG" ]; then
+            echo "## Changes since $PREVIOUS_TAG" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
+          else
+            echo "## Initial Release" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "First release of the billing microservice." >> CHANGELOG.md
+          fi
+          
+          # Add container images info
+          echo "" >> CHANGELOG.md
+          echo "## Container Images" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "- \`ghcr.io/${{ github.repository }}/billing:${{ needs.validate-release.outputs.version }}\`" >> CHANGELOG.md
+          echo "- \`ghcr.io/${{ github.repository }}/billing-dbmigrations:${{ needs.validate-release.outputs.version }}\`" >> CHANGELOG.md
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate-release.outputs.version }}
+          name: Release ${{ needs.validate-release.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ needs.validate-release.outputs.is_prerelease == 'true' }}
+          files: |
+            artifacts/sbom-*/sbom-*.spdx.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Deploy to staging for testing
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [validate-release, build-release]
+    if: ${{ needs.validate-release.outputs.is_prerelease == 'false' }}
+    
+    environment:
+      name: staging
+      url: https://billing-staging.apps.openshift.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install OpenShift CLI
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: 4.12
+      
+      - name: Deploy release to staging
+        run: |
+          oc login --token=${{ secrets.OPENSHIFT_TOKEN }} --server=${{ secrets.OPENSHIFT_SERVER }}
+          oc project billing-staging
+          
+          # Deploy release version
+          oc set image deployment/billing-api \
+            billing-api=${{ env.REGISTRY }}/${{ github.repository }}/billing:${{ needs.validate-release.outputs.version }}
+          
+          oc set image deployment/billing-migrations \
+            billing-migrations=${{ env.REGISTRY }}/${{ github.repository }}/billing-dbmigrations:${{ needs.validate-release.outputs.version }}
+          
+          # Wait for rollout
+          oc rollout status deployment/billing-api --timeout=300s
+          oc rollout status deployment/billing-migrations --timeout=300s
+          
+          # Verify deployment
+          ROUTE=$(oc get route billing-api -o jsonpath='{.spec.host}')
+          curl -f https://$ROUTE/health || exit 1
+          
+          echo "✅ Release ${{ needs.validate-release.outputs.version }} deployed to staging"
+
+  # Notify teams
+  notify:
+    runs-on: ubuntu-latest
+    needs: [create-release, deploy-staging]
+    if: always()
+    
+    steps:
+      - name: Notify success
+        if: ${{ needs.create-release.result == 'success' }}
+        run: |
+          echo "🚀 Release ${{ needs.validate-release.outputs.version }} created successfully"
+          echo "📦 Container images published to GitHub Container Registry"
+          echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate-release.outputs.version }}"
+      
+      - name: Notify failure
+        if: ${{ needs.create-release.result == 'failure' }}
+        run: |
+          echo "❌ Release creation failed"
+          echo "Please check the workflow logs for details"
