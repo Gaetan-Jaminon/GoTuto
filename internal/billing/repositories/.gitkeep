@@ -1,0 +1,3 @@
+# Billing domain repositories
+# This directory will contain repository interfaces that define how 
+# domain entities are persisted and retrieved from storage.

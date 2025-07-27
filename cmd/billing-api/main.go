@@ -130,22 +130,22 @@ func setupRouter(cfg *config.BillingConfig, db *gorm.DB) *gin.Engine {
 		// Client routes
 		clients := apiGroup.Group("/clients")
 		{
-			clients.GET("", api.GetClients)
-			clients.GET("/:id", api.GetClient)
-			clients.POST("", api.CreateClient)
-			clients.PUT("/:id", api.UpdateClient)
-			clients.DELETE("/:id", api.DeleteClient)
-			clients.GET("/:client_id/invoices", api.GetInvoicesByClient)
+			clients.GET("", api.GetClients(db))
+			clients.GET("/:id", api.GetClient(db))
+			clients.POST("", api.CreateClient(db))
+			clients.PUT("/:id", api.UpdateClient(db))
+			clients.DELETE("/:id", api.DeleteClient(db))
+			clients.GET("/:client_id/invoices", api.GetInvoicesByClient(db))
 		}
 		
 		// Invoice routes
 		invoices := apiGroup.Group("/invoices")
 		{
-			invoices.GET("", api.GetInvoices)
-			invoices.GET("/:id", api.GetInvoice)
-			invoices.POST("", api.CreateInvoice)
-			invoices.PUT("/:id", api.UpdateInvoice)
-			invoices.DELETE("/:id", api.DeleteInvoice)
+			invoices.GET("", api.GetInvoices(db))
+			invoices.GET("/:id", api.GetInvoice(db))
+			invoices.POST("", api.CreateInvoice(db))
+			invoices.PUT("/:id", api.UpdateInvoice(db))
+			invoices.DELETE("/:id", api.DeleteInvoice(db))
 		}
 	}
 	
