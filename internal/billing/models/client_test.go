@@ -4,72 +4,60 @@ import (
 	"testing"
 	"time"
 
+	"gaetanjaminon/GoTuto/internal/billing/models/testdata"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
 func TestClient_Validation(t *testing.T) {
-	tests := []struct {
-		name    string
-		client  Client
-		wantErr bool
-	}{
-		{
-			name: "valid client",
-			client: Client{
-				Name:  "John Doe",
-				Email: "john@example.com",
-				Phone: "+1234567890",
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid client minimal",
-			client: Client{
-				Name:  "Jane",
-				Email: "jane@example.com",
-			},
-			wantErr: false,
-		},
-		{
-			name: "empty name",
-			client: Client{
-				Name:  "",
-				Email: "test@example.com",
-			},
-			wantErr: true,
-		},
-		{
-			name: "invalid email",
-			client: Client{
-				Name:  "Test User",
-				Email: "invalid-email",
-			},
-			wantErr: true,
-		},
-		// {
-		// 	name: "name too long",
-		// 	client: Client{
-		// 		Name:  "This is a very long name that exceeds the maximum allowed length of 100 characters for client names",
-		// 		Email: "test@example.com",
-		// 	},
-		// 	wantErr: true,
-		// }, // Disabled for simplicity
-	}
+	clientData, err := testdata.LoadClients()
+	require.NoError(t, err, "Failed to load client test data")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// In a real scenario, you'd validate using your validation library
-			// For this example, we'll do basic validation
-			err := validateClient(tt.client)
-			
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+	t.Run("valid clients", func(t *testing.T) {
+		for i, testClient := range clientData.ValidClients {
+			t.Run(testClient.Name, func(t *testing.T) {
+				client := Client{
+					Name:    testClient.Name,
+					Email:   testClient.Email,
+					Phone:   testClient.Phone,
+					Address: testClient.Address,
+				}
+				err := validateClient(client)
+				assert.NoError(t, err, "Valid client %d should pass validation", i)
+			})
+		}
+	})
+
+	t.Run("invalid clients", func(t *testing.T) {
+		for _, testCase := range clientData.InvalidClients {
+			t.Run(testCase.ExpectedError, func(t *testing.T) {
+				client := Client{
+					Name:    testCase.Name,
+					Email:   testCase.Email,
+					Phone:   testCase.Phone,
+					Address: testCase.Address,
+				}
+				err := validateClient(client)
+				assert.Error(t, err, "Invalid client should fail validation: %s", testCase.ExpectedError)
+			})
+		}
+	})
+
+	t.Run("edge cases", func(t *testing.T) {
+		for _, testCase := range clientData.EdgeCases {
+			t.Run(testCase.Description, func(t *testing.T) {
+				client := Client{
+					Name:    testCase.Name,
+					Email:   testCase.Email,
+					Phone:   testCase.Phone,
+					Address: testCase.Address,
+				}
+				err := validateClient(client)
+				assert.NoError(t, err, "Edge case should be valid: %s", testCase.Description)
+			})
+		}
+	})
 }
 
 func TestClient_String(t *testing.T) {
@@ -107,67 +95,38 @@ func TestClient_SoftDelete(t *testing.T) {
 }
 
 func TestCreateClientRequest_Validation(t *testing.T) {
-	tests := []struct {
-		name    string
-		request CreateClientRequest
-		valid   bool
-	}{
-		{
-			name: "valid request",
-			request: CreateClientRequest{
-				Name:    "John Doe",
-				Email:   "john@example.com",
-				Phone:   "+1234567890",
-				Address: "123 Main St",
-			},
-			valid: true,
-		},
-		{
-			name: "minimal valid request",
-			request: CreateClientRequest{
-				Name:  "Jane",
-				Email: "jane@example.com",
-			},
-			valid: true,
-		},
-		{
-			name: "empty name",
-			request: CreateClientRequest{
-				Name:  "",
-				Email: "test@example.com",
-			},
-			valid: false,
-		},
-		{
-			name: "invalid email format",
-			request: CreateClientRequest{
-				Name:  "Test User",
-				Email: "not-an-email",
-			},
-			valid: false,
-		},
-		{
-			name: "phone too long",
-			request: CreateClientRequest{
-				Name:  "Test User",
-				Email: "test@example.com",
-				Phone: "123456789012345678901", // 21 chars, max is 20
-			},
-			valid: false,
-		},
-	}
+	requestData, err := testdata.LoadCreateClientRequests()
+	require.NoError(t, err, "Failed to load create client request test data")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateCreateClientRequest(tt.request)
-			
-			if tt.valid {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
-		})
-	}
+	t.Run("valid requests", func(t *testing.T) {
+		for i, testRequest := range requestData.ValidRequests {
+			t.Run(testRequest.Name, func(t *testing.T) {
+				request := CreateClientRequest{
+					Name:    testRequest.Name,
+					Email:   testRequest.Email,
+					Phone:   testRequest.Phone,
+					Address: testRequest.Address,
+				}
+				err := validateCreateClientRequest(request)
+				assert.NoError(t, err, "Valid request %d should pass validation", i)
+			})
+		}
+	})
+
+	t.Run("invalid requests", func(t *testing.T) {
+		for _, testCase := range requestData.InvalidRequests {
+			t.Run(testCase.ExpectedError, func(t *testing.T) {
+				request := CreateClientRequest{
+					Name:    testCase.Name,
+					Email:   testCase.Email,
+					Phone:   testCase.Phone,
+					Address: testCase.Address,
+				}
+				err := validateCreateClientRequest(request)
+				assert.Error(t, err, "Invalid request should fail validation: %s", testCase.ExpectedError)
+			})
+		}
+	})
 }
 
 // Helper functions for validation (normally these would be in your validation layer)
