@@ -1,4 +1,4 @@
-# Demo01 - Go CRUD API
+# Billing Service - Go CRUD API
 
 A complete CRUD API built with Go, demonstrating real-world patterns for client and invoice management.
 

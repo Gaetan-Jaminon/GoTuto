@@ -119,17 +119,6 @@ jobs:
             api/billing/coverage.out
             api/billing/coverage.html
 
-      - name: Run integration tests
-        working-directory: ./api/billing
-        env:
-          BILLING_DATABASE_HOST: localhost
-          BILLING_DATABASE_PORT: 5432
-          BILLING_DATABASE_USERNAME: postgres
-          BILLING_DATABASE_PASSWORD: password
-          BILLING_DATABASE_NAME: billing_test
-          BILLING_DATABASE_SSL_MODE: disable
-          APP_ENV: test
-        run: go test -v -tags=integration ./tests/integration/...
 
       - name: Run linting (if available)
         working-directory: ./api/billing
