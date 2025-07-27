@@ -5,8 +5,8 @@ import (
 	"log"
 	"strings"
 	
-	"gaetanjaminon/GoTuto/internal/shared"
-	"gaetanjaminon/GoTuto/internal/billing-migration/database"
+	config "gaetanjaminon/GoTuto/internal/shared"
+	"gaetanjaminon/GoTuto/internal/billing/database"
 	"gaetanjaminon/GoTuto/internal/billing/api"
 	
 	"github.com/gin-gonic/gin"

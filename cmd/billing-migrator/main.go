@@ -5,6 +5,9 @@ import (
 	"log"
 	"os"
 	
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -38,6 +41,107 @@ func init() {
 	viper.BindPFlag("database.name", rootCmd.PersistentFlags().Lookup("db-name"))
 	viper.BindPFlag("database.sslmode", rootCmd.PersistentFlags().Lookup("db-sslmode"))
 	viper.BindPFlag("migrations.path", rootCmd.PersistentFlags().Lookup("migrations-path"))
+	
+	// Add commands
+	rootCmd.AddCommand(upCmd)
+	rootCmd.AddCommand(downCmd)
+	rootCmd.AddCommand(versionCmd)
+}
+
+var upCmd = &cobra.Command{
+	Use:   "up",
+	Short: "Apply all pending migrations",
+	Long:  `Apply all pending database migrations to bring the database schema up to date.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		m, err := getMigrate()
+		if err != nil {
+			log.Fatal("Failed to initialize migrate:", err)
+		}
+		defer m.Close()
+		
+		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+			log.Fatal("Failed to apply migrations:", err)
+		}
+		
+		version, dirty, _ := m.Version()
+		if err == migrate.ErrNoChange {
+			fmt.Printf("Database is already up to date at version %d\n", version)
+		} else {
+			fmt.Printf("Successfully applied migrations to version %d\n", version)
+		}
+		
+		if dirty {
+			fmt.Println("WARNING: Database is in dirty state")
+		}
+	},
+}
+
+var downCmd = &cobra.Command{
+	Use:   "down",
+	Short: "Rollback migrations",
+	Long:  `Rollback database migrations. Use --steps to specify number of migrations to rollback.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		steps, _ := cmd.Flags().GetInt("steps")
+		
+		m, err := getMigrate()
+		if err != nil {
+			log.Fatal("Failed to initialize migrate:", err)
+		}
+		defer m.Close()
+		
+		if steps > 0 {
+			if err := m.Steps(-steps); err != nil && err != migrate.ErrNoChange {
+				log.Fatalf("Failed to rollback %d migrations: %v", steps, err)
+			}
+			fmt.Printf("Successfully rolled back %d migrations\n", steps)
+		} else {
+			// Default: rollback 1 migration
+			if err := m.Steps(-1); err != nil && err != migrate.ErrNoChange {
+				log.Fatal("Failed to rollback migration:", err)
+			}
+			fmt.Println("Successfully rolled back 1 migration")
+		}
+		
+		version, dirty, _ := m.Version()
+		if version > 0 {
+			fmt.Printf("Current version: %d\n", version)
+		} else {
+			fmt.Println("Database has no migrations applied")
+		}
+		
+		if dirty {
+			fmt.Println("WARNING: Database is in dirty state")
+		}
+	},
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Show current migration version",
+	Long:  `Display the current migration version and dirty state of the database.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		m, err := getMigrate()
+		if err != nil {
+			log.Fatal("Failed to initialize migrate:", err)
+		}
+		defer m.Close()
+		
+		version, dirty, err := m.Version()
+		if err != nil {
+			log.Fatal("Failed to get version:", err)
+		}
+		
+		fmt.Printf("Current version: %d\n", version)
+		if dirty {
+			fmt.Println("Status: DIRTY")
+		} else {
+			fmt.Println("Status: CLEAN")
+		}
+	},
+}
+
+func init() {
+	downCmd.Flags().Int("steps", 1, "Number of migrations to rollback")
 }
 
 func initConfig() {
@@ -58,6 +162,21 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
 	}
+}
+
+func getMigrate() (*migrate.Migrate, error) {
+	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		viper.GetString("database.user"),
+		viper.GetString("database.password"),
+		viper.GetString("database.host"),
+		viper.GetInt("database.port"),
+		viper.GetString("database.name"),
+		viper.GetString("database.sslmode"),
+	)
+	
+	migrationsPath := fmt.Sprintf("file://%s", viper.GetString("migrations.path"))
+	
+	return migrate.New(migrationsPath, dbURL)
 }
 
 func main() {

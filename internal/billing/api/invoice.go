@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 	
-	"gaetanjaminon/GoTuto/internal/billing-migration/database"
+	"gaetanjaminon/GoTuto/internal/billing/database"
 	"gaetanjaminon/GoTuto/internal/billing/models"
 	
 	"github.com/gin-gonic/gin"

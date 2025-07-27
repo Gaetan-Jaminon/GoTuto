@@ -25,8 +25,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/billin
 # Final stage - Using Red Hat UBI minimal
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
-# Install ca-certificates for HTTPS
-RUN microdnf install -y ca-certificates && microdnf clean all
+# Install ca-certificates and wget for health checks
+RUN microdnf install -y ca-certificates wget && microdnf clean all
 
 # Create app directory
 RUN mkdir -p /app/config
@@ -52,9 +52,9 @@ USER 1001
 # Expose port
 EXPOSE 8080
 
-# Health check
+# Health check using wget (available in ubi-minimal)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 # Run the binary
 CMD ["./main"]
