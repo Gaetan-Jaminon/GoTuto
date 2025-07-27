@@ -1,0 +1,67 @@
+{
+  "valid_clients": [
+    {
+      "name": "John Doe",
+      "email": "john@example.com",
+      "phone": "+1234567890",
+      "address": "123 Main St"
+    },
+    {
+      "name": "Jane",
+      "email": "jane@example.com",
+      "phone": "",
+      "address": ""
+    },
+    {
+      "name": "Acme Corporation",
+      "email": "contact@acme.com",
+      "phone": "+1-555-0100",
+      "address": "123 Business Plaza, Suite 100, New York, NY 10001"
+    },
+    {
+      "name": "Tech Solutions Inc",
+      "email": "info@techsolutions.com",
+      "phone": "+1-555-0200",
+      "address": "456 Innovation Drive, San Francisco, CA 94105"
+    }
+  ],
+  "invalid_clients": [
+    {
+      "name": "",
+      "email": "test@example.com",
+      "phone": "+1234567890",
+      "address": "123 Main St",
+      "expected_error": "empty name"
+    },
+    {
+      "name": "Test User",
+      "email": "invalid-email",
+      "phone": "+1234567890",
+      "address": "123 Main St",
+      "expected_error": "invalid email"
+    },
+    {
+      "name": "This is a very long name that definitely exceeds the maximum allowed length of 100 characters for client names in our system validation",
+      "email": "test@example.com",
+      "phone": "+1234567890",
+      "address": "123 Main St",
+      "expected_error": "name too long"
+    }
+  ],
+  "edge_cases": [
+    {
+      "name": "A",
+      "email": "a@b.co",
+      "phone": "",
+      "address": "",
+      "description": "minimal valid client"
+    },
+    {
+      "name": "Client With Very Long Address",
+      "email": "client@example.com",
+      "phone": "+1234567890",
+      "address": "This is a very long address that might test our address field limits and ensure we handle long addresses properly in our system validation and storage mechanisms",
+      "description": "long address test"
+    }
+  ]
+}

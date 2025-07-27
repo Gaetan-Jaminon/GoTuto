@@ -1,0 +1,149 @@
+{
+  "valid_invoices": [
+    {
+      "number": "INV-001",
+      "client_id": 1,
+      "amount": 100.50,
+      "status": "draft",
+      "issue_date": "2024-01-15T00:00:00Z",
+      "due_date": "2024-02-15T00:00:00Z",
+      "description": "Test invoice"
+    },
+    {
+      "number": "INV-002",
+      "client_id": 2,
+      "amount": 1500.00,
+      "status": "sent",
+      "issue_date": "2024-01-20T00:00:00Z",
+      "due_date": "2024-02-20T00:00:00Z",
+      "description": "Website development services"
+    },
+    {
+      "number": "INV-003",
+      "client_id": 1,
+      "amount": 75.25,
+      "status": "paid",
+      "issue_date": "2024-01-10T00:00:00Z",
+      "due_date": "2024-02-10T00:00:00Z",
+      "description": "Consulting services"
+    }
+  ],
+  "invalid_invoices": [
+    {
+      "number": "INV-004",
+      "client_id": 1,
+      "amount": 0,
+      "status": "draft",
+      "issue_date": "2024-01-15T00:00:00Z",
+      "due_date": "2024-02-15T00:00:00Z",
+      "description": "Zero amount invoice",
+      "expected_error": "zero amount"
+    },
+    {
+      "number": "INV-005",
+      "client_id": 1,
+      "amount": -50.00,
+      "status": "draft",
+      "issue_date": "2024-01-15T00:00:00Z",
+      "due_date": "2024-02-15T00:00:00Z",
+      "description": "Negative amount invoice",
+      "expected_error": "negative amount"
+    },
+    {
+      "number": "INV-006",
+      "client_id": 1,
+      "amount": 100.00,
+      "status": "draft",
+      "issue_date": "2024-02-15T00:00:00Z",
+      "due_date": "2024-01-15T00:00:00Z",
+      "description": "Due date before issue date",
+      "expected_error": "due date before issue date"
+    },
+    {
+      "number": "INV-007",
+      "client_id": 1,
+      "amount": 100.00,
+      "status": "invalid",
+      "issue_date": "2024-01-15T00:00:00Z",
+      "due_date": "2024-02-15T00:00:00Z",
+      "description": "Invalid status",
+      "expected_error": "invalid status"
+    }
+  ],
+  "status_scenarios": [
+    {
+      "name": "draft to sent",
+      "from_status": "draft",
+      "to_status": "sent",
+      "should_allow": true
+    },
+    {
+      "name": "draft to cancelled",
+      "from_status": "draft",
+      "to_status": "cancelled",
+      "should_allow": true
+    },
+    {
+      "name": "sent to paid",
+      "from_status": "sent",
+      "to_status": "paid",
+      "should_allow": true
+    },
+    {
+      "name": "sent to overdue",
+      "from_status": "sent",
+      "to_status": "overdue",
+      "should_allow": true
+    },
+    {
+      "name": "sent to cancelled",
+      "from_status": "sent",
+      "to_status": "cancelled",
+      "should_allow": true
+    },
+    {
+      "name": "paid to draft",
+      "from_status": "paid",
+      "to_status": "draft",
+      "should_allow": false
+    },
+    {
+      "name": "paid to sent",
+      "from_status": "paid",
+      "to_status": "sent",
+      "should_allow": false
+    },
+    {
+      "name": "cancelled to paid",
+      "from_status": "cancelled",
+      "to_status": "paid",
+      "should_allow": false
+    }
+  ],
+  "overdue_scenarios": [
+    {
+      "name": "not overdue - due tomorrow",
+      "status": "sent",
+      "due_date_offset_days": 1,
+      "expected_overdue": false
+    },
+    {
+      "name": "overdue - due yesterday",
+      "status": "sent",
+      "due_date_offset_days": -1,
+      "expected_overdue": true
+    },
+    {
+      "name": "paid invoice not overdue even if past due date",
+      "status": "paid",
+      "due_date_offset_days": -5,
+      "expected_overdue": false
+    },
+    {
+      "name": "draft invoice not overdue",
+      "status": "draft",
+      "due_date_offset_days": -1,
+      "expected_overdue": false
+    }
+  ]
+}

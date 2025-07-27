@@ -1,0 +1,52 @@
+{
+  "valid_requests": [
+    {
+      "name": "John Doe",
+      "email": "john@example.com",
+      "phone": "+1234567890",
+      "address": "123 Main St"
+    },
+    {
+      "name": "Jane",
+      "email": "jane@example.com",
+      "phone": "",
+      "address": ""
+    },
+    {
+      "name": "Corporate Client",
+      "email": "contact@corp.com",
+      "phone": "+1-555-0100",
+      "address": "Corporate Plaza"
+    }
+  ],
+  "invalid_requests": [
+    {
+      "name": "",
+      "email": "test@example.com",
+      "phone": "+1234567890",
+      "address": "123 Main St",
+      "expected_error": "empty name"
+    },
+    {
+      "name": "Test User",
+      "email": "not-an-email",
+      "phone": "+1234567890",
+      "address": "123 Main St",
+      "expected_error": "invalid email format"
+    },
+    {
+      "name": "Test User",
+      "email": "test@example.com",
+      "phone": "123456789012345678901",
+      "address": "123 Main St",
+      "expected_error": "phone too long"
+    },
+    {
+      "name": "A",
+      "email": "test@example.com",
+      "phone": "+1234567890",
+      "address": "123 Main St",
+      "expected_error": "name too short"
+    }
+  ]
+}

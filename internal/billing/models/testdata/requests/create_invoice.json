@@ -1,0 +1,57 @@
+{
+  "valid_requests": [
+    {
+      "client_id": 1,
+      "amount": 150.75,
+      "status": "draft",
+      "issue_date": "2024-01-15T00:00:00Z",
+      "due_date": "2024-02-15T00:00:00Z",
+      "description": "Test service"
+    },
+    {
+      "client_id": 2,
+      "amount": 1000.00,
+      "status": "sent",
+      "issue_date": "2024-01-20T00:00:00Z",
+      "due_date": "2024-02-20T00:00:00Z",
+      "description": "Development services"
+    },
+    {
+      "client_id": 3,
+      "amount": 50.00,
+      "status": "",
+      "issue_date": "2024-01-10T00:00:00Z",
+      "due_date": "2024-02-10T00:00:00Z",
+      "description": "Small consulting task"
+    }
+  ],
+  "invalid_requests": [
+    {
+      "client_id": 0,
+      "amount": 100.00,
+      "status": "draft",
+      "issue_date": "2024-01-15T00:00:00Z",
+      "due_date": "2024-02-15T00:00:00Z",
+      "description": "Test service",
+      "expected_error": "zero client ID"
+    },
+    {
+      "client_id": 1,
+      "amount": 0,
+      "status": "draft",
+      "issue_date": "2024-01-15T00:00:00Z",
+      "due_date": "2024-02-15T00:00:00Z",
+      "description": "Test service",
+      "expected_error": "zero amount"
+    },
+    {
+      "client_id": 1,
+      "amount": 100.00,
+      "status": "draft",
+      "issue_date": "2024-01-15T00:00:00Z",
+      "due_date": "2024-02-15T00:00:00Z",
+      "description": "This is a very long description that exceeds the maximum allowed length of 500 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+      "expected_error": "description too long"
+    }
+  ]
+}

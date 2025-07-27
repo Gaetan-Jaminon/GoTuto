@@ -30,9 +30,9 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /opt/app-root/src/billing-migrator /usr/local/bin/
 
-# Copy migrations and config
-COPY migrations /app/migrations
-COPY config.yaml /app/config.yaml
+# Copy billing migrations and config
+COPY --from=builder /opt/app-root/src/internal/billing/migrations /app/migrations
+COPY --from=builder /opt/app-root/src/config ./config
 
 # Create non-root user (OpenShift compatible UID)
 RUN useradd -u 1001 -r -g 0 -s /sbin/nologin migrator

@@ -2,9 +2,10 @@ package models
 
 import (
 	"testing"
-	"time"
 
+	"gaetanjaminon/GoTuto/internal/billing/models/testdata"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInvoiceStatus_Validation(t *testing.T) {
@@ -28,228 +29,121 @@ func TestInvoiceStatus_Validation(t *testing.T) {
 }
 
 func TestInvoice_Validation(t *testing.T) {
-	baseTime := time.Now()
-	
-	tests := []struct {
-		name    string
-		invoice Invoice
-		wantErr bool
-	}{
-		{
-			name: "valid invoice",
-			invoice: Invoice{
-				Number:      "INV-001",
-				ClientID:    1,
-				Amount:      100.50,
-				Status:      InvoiceStatusDraft,
-				IssueDate:   baseTime,
-				DueDate:     baseTime.AddDate(0, 1, 0), // 1 month later
-				Description: "Test invoice",
-			},
-			wantErr: false,
-		},
-		{
-			name: "zero amount",
-			invoice: Invoice{
-				Number:    "INV-002",
-				ClientID:  1,
-				Amount:    0,
-				Status:    InvoiceStatusDraft,
-				IssueDate: baseTime,
-				DueDate:   baseTime.AddDate(0, 1, 0),
-			},
-			wantErr: true,
-		},
-		{
-			name: "negative amount",
-			invoice: Invoice{
-				Number:    "INV-003",
-				ClientID:  1,
-				Amount:    -50.00,
-				Status:    InvoiceStatusDraft,
-				IssueDate: baseTime,
-				DueDate:   baseTime.AddDate(0, 1, 0),
-			},
-			wantErr: true,
-		},
-		{
-			name: "due date before issue date",
-			invoice: Invoice{
-				Number:    "INV-004",
-				ClientID:  1,
-				Amount:    100.00,
-				Status:    InvoiceStatusDraft,
-				IssueDate: baseTime,
-				DueDate:   baseTime.AddDate(0, -1, 0), // 1 month before
-			},
-			wantErr: true,
-		},
-		{
-			name: "invalid status",
-			invoice: Invoice{
-				Number:    "INV-005",
-				ClientID:  1,
-				Amount:    100.00,
-				Status:    InvoiceStatus("invalid"),
-				IssueDate: baseTime,
-				DueDate:   baseTime.AddDate(0, 1, 0),
-			},
-			wantErr: true,
-		},
-	}
+	invoiceData, err := testdata.LoadInvoices()
+	require.NoError(t, err, "Failed to load invoice test data")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateInvoice(tt.invoice)
-			
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+	t.Run("valid invoices", func(t *testing.T) {
+		for i, testInvoice := range invoiceData.ValidInvoices {
+			t.Run(testInvoice.Number, func(t *testing.T) {
+				invoice := Invoice{
+					Number:      testInvoice.Number,
+					ClientID:    testInvoice.ClientID,
+					Amount:      testInvoice.Amount,
+					Status:      InvoiceStatus(testInvoice.Status),
+					IssueDate:   testInvoice.IssueDate,
+					DueDate:     testInvoice.DueDate,
+					Description: testInvoice.Description,
+				}
+				err := validateInvoice(invoice)
+				assert.NoError(t, err, "Valid invoice %d should pass validation", i)
+			})
+		}
+	})
+
+	t.Run("invalid invoices", func(t *testing.T) {
+		for _, testCase := range invoiceData.InvalidInvoices {
+			t.Run(testCase.ExpectedError, func(t *testing.T) {
+				invoice := Invoice{
+					Number:      testCase.Number,
+					ClientID:    testCase.ClientID,
+					Amount:      testCase.Amount,
+					Status:      InvoiceStatus(testCase.Status),
+					IssueDate:   testCase.IssueDate,
+					DueDate:     testCase.DueDate,
+					Description: testCase.Description,
+				}
+				err := validateInvoice(invoice)
+				assert.Error(t, err, "Invalid invoice should fail validation: %s", testCase.ExpectedError)
+			})
+		}
+	})
 }
 
 func TestInvoice_StatusTransitions(t *testing.T) {
-	tests := []struct {
-		name        string
-		fromStatus  InvoiceStatus
-		toStatus    InvoiceStatus
-		shouldAllow bool
-	}{
-		{"draft to sent", InvoiceStatusDraft, InvoiceStatusSent, true},
-		{"draft to cancelled", InvoiceStatusDraft, InvoiceStatusCancelled, true},
-		{"sent to paid", InvoiceStatusSent, InvoiceStatusPaid, true},
-		{"sent to overdue", InvoiceStatusSent, InvoiceStatusOverdue, true},
-		{"sent to cancelled", InvoiceStatusSent, InvoiceStatusCancelled, true},
-		{"paid to draft", InvoiceStatusPaid, InvoiceStatusDraft, false},
-		{"paid to sent", InvoiceStatusPaid, InvoiceStatusSent, false},
-		{"cancelled to paid", InvoiceStatusCancelled, InvoiceStatusPaid, false},
-	}
+	invoiceData, err := testdata.LoadInvoices()
+	require.NoError(t, err, "Failed to load invoice test data")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			allowed := isValidStatusTransition(tt.fromStatus, tt.toStatus)
-			assert.Equal(t, tt.shouldAllow, allowed)
+	for _, scenario := range invoiceData.StatusScenarios {
+		t.Run(scenario.Name, func(t *testing.T) {
+			fromStatus := InvoiceStatus(scenario.FromStatus)
+			toStatus := InvoiceStatus(scenario.ToStatus)
+			allowed := isValidStatusTransition(fromStatus, toStatus)
+			assert.Equal(t, scenario.ShouldAllow, allowed, 
+				"Status transition %s -> %s should be %v", scenario.FromStatus, scenario.ToStatus, scenario.ShouldAllow)
 		})
 	}
 }
 
 func TestInvoice_IsOverdue(t *testing.T) {
-	now := time.Now()
-	
-	tests := []struct {
-		name     string
-		invoice  Invoice
-		expected bool
-	}{
-		{
-			name: "not overdue - due tomorrow",
-			invoice: Invoice{
-				Status:  InvoiceStatusSent,
-				DueDate: now.AddDate(0, 0, 1), // tomorrow
-			},
-			expected: false,
-		},
-		{
-			name: "overdue - due yesterday",
-			invoice: Invoice{
-				Status:  InvoiceStatusSent,
-				DueDate: now.AddDate(0, 0, -1), // yesterday
-			},
-			expected: true,
-		},
-		{
-			name: "paid invoice not overdue even if past due date",
-			invoice: Invoice{
-				Status:  InvoiceStatusPaid,
-				DueDate: now.AddDate(0, 0, -5), // 5 days ago
-			},
-			expected: false,
-		},
-		{
-			name: "draft invoice not overdue",
-			invoice: Invoice{
-				Status:  InvoiceStatusDraft,
-				DueDate: now.AddDate(0, 0, -1), // yesterday
-			},
-			expected: false,
-		},
-	}
+	invoiceData, err := testdata.LoadInvoices()
+	require.NoError(t, err, "Failed to load invoice test data")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.invoice.IsOverdue()
-			assert.Equal(t, tt.expected, result)
+	for _, scenario := range invoiceData.OverdueScenarios {
+		t.Run(scenario.Name, func(t *testing.T) {
+			testInvoice := testdata.GenerateOverdueInvoice(scenario)
+			invoice := Invoice{
+				ID:        testInvoice.ID,
+				Number:    testInvoice.Number,
+				ClientID:  testInvoice.ClientID,
+				Amount:    testInvoice.Amount,
+				Status:    InvoiceStatus(testInvoice.Status),
+				IssueDate: testInvoice.IssueDate,
+				DueDate:   testInvoice.DueDate,
+			}
+			result := invoice.IsOverdue()
+			assert.Equal(t, scenario.ExpectedOverdue, result, 
+				"Overdue check for scenario '%s' should be %v", scenario.Name, scenario.ExpectedOverdue)
 		})
 	}
 }
 
 func TestCreateInvoiceRequest_Validation(t *testing.T) {
-	baseTime := time.Now()
-	
-	tests := []struct {
-		name    string
-		request CreateInvoiceRequest
-		valid   bool
-	}{
-		{
-			name: "valid request",
-			request: CreateInvoiceRequest{
-				ClientID:    1,
-				Amount:      150.75,
-				Status:      InvoiceStatusDraft,
-				IssueDate:   baseTime,
-				DueDate:     baseTime.AddDate(0, 1, 0),
-				Description: "Test service",
-			},
-			valid: true,
-		},
-		{
-			name: "zero client ID",
-			request: CreateInvoiceRequest{
-				ClientID:  0,
-				Amount:    100.00,
-				IssueDate: baseTime,
-				DueDate:   baseTime.AddDate(0, 1, 0),
-			},
-			valid: false,
-		},
-		{
-			name: "zero amount",
-			request: CreateInvoiceRequest{
-				ClientID:  1,
-				Amount:    0,
-				IssueDate: baseTime,
-				DueDate:   baseTime.AddDate(0, 1, 0),
-			},
-			valid: false,
-		},
-		{
-			name: "description too long",
-			request: CreateInvoiceRequest{
-				ClientID:    1,
-				Amount:      100.00,
-				IssueDate:   baseTime,
-				DueDate:     baseTime.AddDate(0, 1, 0),
-				Description: generateLongString(501), // max is 500
-			},
-			valid: false,
-		},
-	}
+	requestData, err := testdata.LoadCreateInvoiceRequests()
+	require.NoError(t, err, "Failed to load create invoice request test data")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateCreateInvoiceRequest(tt.request)
-			
-			if tt.valid {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
-		})
-	}
+	t.Run("valid requests", func(t *testing.T) {
+		for i, testRequest := range requestData.ValidRequests {
+			t.Run(testRequest.Description, func(t *testing.T) {
+				request := CreateInvoiceRequest{
+					ClientID:    testRequest.ClientID,
+					Amount:      testRequest.Amount,
+					Status:      InvoiceStatus(testRequest.Status),
+					IssueDate:   testRequest.IssueDate,
+					DueDate:     testRequest.DueDate,
+					Description: testRequest.Description,
+				}
+				err := validateCreateInvoiceRequest(request)
+				assert.NoError(t, err, "Valid request %d should pass validation", i)
+			})
+		}
+	})
+
+	t.Run("invalid requests", func(t *testing.T) {
+		for _, testCase := range requestData.InvalidRequests {
+			t.Run(testCase.ExpectedError, func(t *testing.T) {
+				request := CreateInvoiceRequest{
+					ClientID:    testCase.ClientID,
+					Amount:      testCase.Amount,
+					Status:      InvoiceStatus(testCase.Status),
+					IssueDate:   testCase.IssueDate,
+					DueDate:     testCase.DueDate,
+					Description: testCase.Description,
+				}
+				err := validateCreateInvoiceRequest(request)
+				assert.Error(t, err, "Invalid request should fail validation: %s", testCase.ExpectedError)
+			})
+		}
+	})
 }
 
 // Helper functions for validation
@@ -331,20 +225,4 @@ func isValidStatusTransition(from, to InvoiceStatus) bool {
 		}
 	}
 	return false
-}
-
-func generateLongString(length int) string {
-	result := make([]byte, length)
-	for i := range result {
-		result[i] = 'a'
-	}
-	return string(result)
-}
-
-// Add methods to Invoice for testing
-func (i Invoice) IsOverdue() bool {
-	if i.Status == InvoiceStatusPaid || i.Status == InvoiceStatusCancelled || i.Status == InvoiceStatusDraft {
-		return false
-	}
-	return time.Now().After(i.DueDate)
 }

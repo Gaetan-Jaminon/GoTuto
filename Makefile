@@ -3,7 +3,7 @@
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  make build        - Build both binaries"
+	@echo "  make build        - Build all binaries (APIs and migrators)"
 	@echo "  make test         - Run tests with coverage"
 	@echo "  make test-unit    - Run unit tests only"
 	@echo "  make lint         - Run linting tools"

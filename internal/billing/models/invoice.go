@@ -48,3 +48,11 @@ type UpdateInvoiceRequest struct {
 	DueDate     time.Time     `json:"due_date" binding:"omitempty"`
 	Description string        `json:"description" binding:"omitempty,max=500"`
 }
+
+// IsOverdue checks if the invoice is overdue
+func (i Invoice) IsOverdue() bool {
+	if i.Status == InvoiceStatusPaid || i.Status == InvoiceStatusCancelled || i.Status == InvoiceStatusDraft {
+		return false
+	}
+	return time.Now().After(i.DueDate)
+}
