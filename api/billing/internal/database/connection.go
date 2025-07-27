@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -48,10 +49,10 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
 
 	// Test connection
-	ctx, cancel := db.WithContext(db.Statement.Context)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := ctx.Exec("SELECT 1").Error; err != nil {
+	if err := db.WithContext(ctx).Exec("SELECT 1").Error; err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
