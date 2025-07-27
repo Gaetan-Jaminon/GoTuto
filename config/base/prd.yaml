@@ -1,0 +1,19 @@
+server:
+  mode: "release"
+  port: 8080
+  read_timeout: 10s
+  write_timeout: 10s
+
+database:
+  ssl_mode: "require"
+  max_open_conns: 100
+  max_idle_conns: 10
+  conn_max_lifetime: 1h
+
+logging:
+  level: "info"
+  format: "json"
+
+cors:
+  allowed_origins:
+    - "https://yourdomain.com"

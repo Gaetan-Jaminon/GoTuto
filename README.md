@@ -1,6 +1,6 @@
-# GoTuto - Learn Go with Real-World Examples
+# GoTuto - Learn Go with Real-World Domain-Driven Design
 
-A practical Go learning project designed for .NET developers transitioning to Go. This project demonstrates Domain-Driven Design and enterprise development practices while following the principle: **start simple, add complexity gradually**.
+A practical Go learning project designed for .NET developers transitioning to Go. This project demonstrates **Domain-Driven Design** with **proper separation of concerns** and enterprise development practices while following the principle: **start simple, add complexity gradually**.
 
 ## 🎯 Learning Philosophy
 
@@ -10,43 +10,169 @@ This project evolved through real development challenges, demonstrating:
 - **Learn from failures**: Document troubleshooting and decisions
 - **Focus on working solutions**: Practical over perfect
 - **Embrace simplicity**: Remove complexity that doesn't add value
+- **True DDD separation**: Each domain owns its complete context
 
-## 📁 Current Project Structure (Single Module + DDD)
+## 📁 Current Project Structure (Domain-First Architecture)
 
 ```
 GoTuto/
-├── cmd/                          # Application entry points
-│   ├── billing-api/main.go      # Billing API service
-│   └── billing-migrator/main.go # Database migration service
-├── internal/                     # Domain-Driven Design organization
-│   ├── billing/                 # DOMAIN: Business logic
-│   │   ├── api/                 # Application services (handlers)
-│   │   ├── models/              # Domain entities
-│   │   ├── services/            # Domain services
-│   │   └── repositories/        # Domain interfaces
-│   ├── billing-migration/       # INFRASTRUCTURE: Data management
-│   │   ├── database/            # Database connections
-│   │   ├── runners/             # Migration execution
-│   │   └── scripts/             # Migration scripts
-│   └── shared/                  # Shared utilities (config, etc.)
-├── scripts/                      # Developer convenience tools
-│   ├── build.sh                # Build both binaries
-│   ├── test.sh                 # Run tests with coverage
-│   ├── test-unit.sh            # Quick unit tests
-│   ├── lint.sh                 # Run linting tools
-│   ├── docker-build.sh         # Build Docker images
-│   ├── clean.sh                # Clean build artifacts
-│   └── dev-setup.sh            # Set up development environment
-├── billing-api.Dockerfile       # API service container (root = Go convention)
-├── billing-migrator.Dockerfile  # Migration service container
-├── Makefile                      # Familiar interface (make build, make test)
-├── .github/workflows/           # Simplified CI (Claude integration only)
-│   ├── claude.yml              # Interactive Claude (@claude mentions)
-│   └── claude-code-review.yml  # Automated PR reviews
-├── test/                        # Integration & E2E tests (future)
-├── config/                      # Configuration files
-└── notes/                       # Learning documentation
+├── cmd/                                    # Application entry points
+│   ├── billing-api/main.go                # Billing API service
+│   ├── billing-migrator/main.go           # Billing migration tool
+│   └── catalog-migrator/main.go           # Catalog migration tool
+├── config/                                 # Domain-first configuration
+│   ├── base/                              # Shared infrastructure config
+│   │   ├── base.yaml                      # Common server, database, logging
+│   │   ├── dev.yaml                       # Development overrides
+│   │   ├── qua.yaml                       # QA environment overrides
+│   │   └── prd.yaml                       # Production overrides
+│   ├── billing/                           # Billing domain configuration
+│   │   ├── billing.yaml                   # Billing-specific settings
+│   │   ├── dev.yaml                       # Billing dev overrides
+│   │   ├── qua.yaml                       # Billing QA overrides
+│   │   └── prd.yaml                       # Billing prod overrides
+│   └── catalog/                           # Catalog domain configuration
+│       ├── catalog.yaml                   # Catalog-specific settings
+│       ├── dev.yaml                       # Catalog dev overrides
+│       ├── qua.yaml                       # Catalog QA overrides
+│       └── prd.yaml                       # Catalog prod overrides
+├── internal/                               # Domain-Driven Design organization
+│   ├── shared/
+│   │   └── infrastructure/                # Truly shared utilities
+│   │       ├── config.go                  # Generic config loader
+│   │       ├── server.go                  # ServerConfig struct
+│   │       ├── database.go                # DatabaseConfig struct + schema support
+│   │       ├── logging.go                 # LoggingConfig struct
+│   │       └── cors.go                    # CORSConfig struct
+│   ├── billing/                           # BILLING DOMAIN (complete isolation)
+│   │   ├── config/config.go               # Billing config (BILLING_ env prefix)
+│   │   ├── migrations/                    # Billing schema migrations
+│   │   │   ├── 001_create_billing_schema.up.sql
+│   │   │   ├── 001_create_billing_schema.down.sql
+│   │   │   ├── 002_billing_tables.up.sql
+│   │   │   └── 002_billing_tables.down.sql
+│   │   ├── database/connection.go         # Billing database (billing schema)
+│   │   ├── models/                        # Billing domain entities
+│   │   │   ├── client.go                  # Client entity + DTOs
+│   │   │   └── invoice.go                 # Invoice entity + DTOs
+│   │   ├── api/                           # Billing application services
+│   │   │   ├── client.go                  # Client HTTP handlers
+│   │   │   └── invoice.go                 # Invoice HTTP handlers
+│   │   ├── services/                      # Billing domain services
+│   │   └── repositories/                  # Billing data interfaces
+│   └── catalog/                           # CATALOG DOMAIN (complete isolation)
+│       ├── config/config.go               # Catalog config (CATALOG_ env prefix)
+│       ├── migrations/                    # Catalog schema migrations
+│       │   ├── 001_create_catalog_schema.up.sql
+│       │   ├── 001_create_catalog_schema.down.sql
+│       │   ├── 002_catalog_tables.up.sql
+│       │   └── 002_catalog_tables.down.sql
+│       ├── database/connection.go         # Catalog database (catalog schema)
+│       ├── models/                        # Catalog domain entities
+│       ├── api/                           # Catalog application services
+│       ├── services/                      # Catalog domain services
+│       └── repositories/                  # Catalog data interfaces
+├── scripts/                                # Developer convenience tools
+│   ├── build.sh                          # Build all binaries
+│   ├── test.sh                           # Run tests with coverage
+│   ├── test-unit.sh                      # Quick unit tests
+│   ├── lint.sh                           # Run linting tools
+│   ├── docker-build.sh                   # Build Docker images
+│   ├── clean.sh                          # Clean build artifacts
+│   └── dev-setup.sh                      # Set up development environment
+├── billing-api.Dockerfile                 # API service container
+├── billing-migrator.Dockerfile            # Billing migration container
+├── Makefile                                # Familiar interface (make build, make test)
+├── .github/workflows/                      # Simplified CI (Claude integration)
+│   └── claude-code-review.yml            # Automated PR reviews
+├── test/                                   # Integration & E2E tests (future)
+└── notes/                                  # Learning documentation
 ```
+
+## 🏗️ Architecture: True Domain-Driven Design
+
+### Domain-First Principles
+
+This project demonstrates **enterprise-grade DDD** with complete domain separation:
+
+#### 🎯 **Developer Cognitive Load Reduction**
+When working on billing features, developers only need to focus on:
+- **Code**: `internal/billing/`
+- **Config**: `config/billing/`
+- **Migrations**: `internal/billing/migrations/`
+
+Everything is co-located, reducing context switching and mental overhead.
+
+#### 🔒 **Database Schema Isolation**
+```sql
+-- Single database, multiple schemas
+Database: gotuto_dev / gotuto_qua / gotuto_prd
+
+-- Domain-specific schemas
+├── billing schema
+│   ├── clients table
+│   └── invoices table
+└── catalog schema
+    ├── products table
+    ├── categories table
+    └── product_categories table
+```
+
+#### 🛡️ **RBAC at Database Level**
+```sql
+-- Domain-specific users prevent cross-domain access
+billing_app     → USAGE + DML on billing schema only
+catalog_app     → USAGE + DML on catalog schema only
+
+billing_migrator → CREATE + DDL on billing schema only
+catalog_migrator → CREATE + DDL on catalog schema only
+```
+
+### Configuration Architecture
+
+#### Domain-First Configuration Loading
+```
+config/billing/billing.yaml  # Domain defaults
+         ├── dev.yaml         # Environment overrides
+         ├── qua.yaml         # QA overrides
+         └── prd.yaml         # Production overrides
+
+config/catalog/catalog.yaml  # Domain defaults
+         ├── dev.yaml         # Environment overrides
+         ├── qua.yaml         # QA overrides
+         └── prd.yaml         # Production overrides
+```
+
+#### Environment Variable Strategy
+```bash
+# Billing domain (BILLING_ prefix)
+BILLING_DATABASE_HOST=localhost
+BILLING_DATABASE_PASSWORD=secret
+BILLING_SERVER_PORT=8080
+
+# Catalog domain (CATALOG_ prefix)  
+CATALOG_DATABASE_HOST=localhost
+CATALOG_DATABASE_PASSWORD=secret
+CATALOG_SERVER_PORT=8081
+```
+
+### Migration Architecture
+
+Each domain manages its own schema:
+
+```bash
+# Billing migrations (billing schema only)
+./bin/billing-migrator up
+
+# Catalog migrations (catalog schema only) 
+./bin/catalog-migrator up
+```
+
+**Key Benefits:**
+- ✅ No cross-schema migrations possible
+- ✅ Database-level enforcement of boundaries
+- ✅ Independent domain evolution
+- ✅ Easy microservice extraction
 
 ## 🚀 Quick Start
 
@@ -62,7 +188,7 @@ GoTuto/
 git clone https://github.com/Gaetan-Jaminon/GoTuto.git
 cd GoTuto
 
-# Set up development environment (installs tools, makes scripts executable)
+# Set up development environment
 ./scripts/dev-setup.sh
 ```
 
@@ -74,7 +200,7 @@ cd GoTuto
 # OR
 make test
 
-# Build both applications
+# Build all applications
 ./scripts/build.sh
 # OR
 make build
@@ -88,509 +214,454 @@ make lint
 ./scripts/docker-build.sh
 # OR
 make docker
-
-# Clean everything
-./scripts/clean.sh
-# OR
-make clean
 ```
 
-### 3. Run the API (with Database)
+### 3. Database Setup (Schema-Based Separation)
 
 ```bash
-# Start PostgreSQL (using Docker)
+# Start PostgreSQL
 docker run -d \
   --name postgres-dev \
-  -e POSTGRES_DB=billing \
+  -e POSTGRES_DB=gotuto_dev \
   -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_PASSWORD=postgres \
   -p 5432:5432 \
   postgres:15
 
-# Set environment variables
-export BILLING_DATABASE_HOST=localhost
-export BILLING_DATABASE_PASSWORD=password
-
-# Build and run the API
-./scripts/build.sh
-./bin/billing-api
+# Set up database users and schemas
+psql -h localhost -U postgres -d gotuto_dev -c "
+  -- Create schemas
+  CREATE SCHEMA IF NOT EXISTS billing;
+  CREATE SCHEMA IF NOT EXISTS catalog;
+  
+  -- Create domain users
+  CREATE USER billing_app WITH PASSWORD 'billing_pass';
+  CREATE USER catalog_app WITH PASSWORD 'catalog_pass';
+  CREATE USER billing_migrator WITH PASSWORD 'billing_migrate_pass';
+  CREATE USER catalog_migrator WITH PASSWORD 'catalog_migrate_pass';
+  
+  -- Grant schema permissions (RBAC)
+  GRANT USAGE ON SCHEMA billing TO billing_app;
+  GRANT ALL ON ALL TABLES IN SCHEMA billing TO billing_app;
+  GRANT CREATE ON SCHEMA billing TO billing_migrator;
+  
+  GRANT USAGE ON SCHEMA catalog TO catalog_app;
+  GRANT ALL ON ALL TABLES IN SCHEMA catalog TO catalog_app;
+  GRANT CREATE ON SCHEMA catalog TO catalog_migrator;
+"
 ```
 
-### 4. Test the API
+### 4. Run Migrations
 
 ```bash
+# Migrate billing schema
+APP_ENV=dev ./bin/billing-migrator up
+
+# Migrate catalog schema  
+APP_ENV=dev ./bin/catalog-migrator up
+```
+
+### 5. Start the API
+
+```bash
+# Build and run billing API
+./scripts/build.sh
+APP_ENV=dev ./bin/billing-api
+```
+
+### 6. Test Domain Separation
+
+```bash
+# Test billing API
 curl http://localhost:8080/health
 curl http://localhost:8080/api/v1/clients
+
+# Each domain has its own:
+# - Database schema (billing vs catalog)
+# - Configuration files (config/billing/ vs config/catalog/)
+# - Migration tools (billing-migrator vs catalog-migrator)
+# - Environment prefixes (BILLING_ vs CATALOG_)
 ```
 
-## 🧪 Testing Strategy (Simplified & Effective)
+## 🧪 Testing Strategy (Domain-Focused)
 
-### Current Approach: Unit Tests Only
+### Current Approach: Domain-Specific Unit Tests
 
-We learned that complex testing setups can become blockers. Current philosophy: **start with tests that always work**.
+Each domain has its own test suite with no cross-domain dependencies:
 
 ```bash
-# Fast feedback loop (runs everywhere)
-./scripts/test-unit.sh
+# Test billing domain only
+go test ./internal/billing/...
 
-# With coverage reports
-./scripts/test.sh
+# Test catalog domain only  
+go test ./internal/catalog/...
+
+# Test all domains
+./scripts/test-unit.sh
 ```
 
-**Current Tests:**
-- **Configuration validation** (`internal/shared/config_test.go`)
-- **Domain model logic** (`internal/billing/models/*_test.go`)
-- **Business rules** (invoice status transitions, validation)
-
-### Why We Simplified
-
-**❌ Removed (barriers to learning):**
-- Integration tests requiring PostgreSQL setup
-- E2E tests requiring full application stack  
-- Handler tests requiring database mocking
-- Complex CI pipelines blocking development
-
-**✅ Kept (always works):**
-- Unit tests with no external dependencies
-- Domain logic validation
-- Business rule testing
-- Local development tools
-
-**Lesson**: Start with tests that run everywhere instantly. Add complexity when the foundation is solid.
-
-## 🏗️ Architecture: Domain-Driven Design in Go
-
-### Single Module with Domain Separation
-
-This project demonstrates **DDD in Go** while maintaining simplicity:
-
-**Domain Layer** (`internal/billing/`):
-- **Models**: Core business entities (Client, Invoice)
-- **Services**: Business logic and rules
-- **Repositories**: Domain interfaces (ports)
-- **API**: Application services (use cases)
-
-**Infrastructure Layer** (`internal/billing-migration/`):
-- **Database**: Connection management
-- **Runners**: Migration execution
-- **Scripts**: Schema definitions
-
-**Shared Kernel** (`internal/shared/`):
-- Configuration management
-- Common utilities
-
-### Why Single Module?
-
-**Current Benefits:**
-- Simpler dependency management
-- Easier local development
-- Single test suite
-- Go-idiomatic structure
-
-**Future-Proof Design:**
-- Clear domain boundaries
-- Easy extraction to separate repositories:
-  ```
-  billing-api/        # Domain + API
-  billing-migration/  # Infrastructure
-  shared-library/     # Common utilities
-  ```
+**Domain-Specific Tests:**
+- **Billing Models** (`internal/billing/models/*_test.go`)
+- **Catalog Models** (`internal/catalog/models/*_test.go`)
+- **Configuration Loading** (per domain)
+- **Business Rules** (domain-specific validation)
 
 ## 🏗️ API Overview
 
-### Billing Service
+### Billing Service (Port 8080)
 
-A RESTful API demonstrating Go web development patterns:
+RESTful API demonstrating Go web development with billing domain:
 
-**Core Features:**
-- CRUD operations for clients and invoices
-- Configuration management with Viper
-- Database integration with GORM
-- HTTP routing with Gin
-- Structured logging
-- Health checks
-
-**API Endpoints:**
-```
-GET    /health                 # Health check
-GET    /api/v1/clients        # List clients  
-POST   /api/v1/clients        # Create client
-GET    /api/v1/clients/{id}   # Get client
-PUT    /api/v1/clients/{id}   # Update client
-DELETE /api/v1/clients/{id}   # Delete client
-GET    /api/v1/invoices       # List invoices
-POST   /api/v1/invoices       # Create invoice
-GET    /api/v1/invoices/{id}  # Get invoice
-PUT    /api/v1/invoices/{id}  # Update invoice
-DELETE /api/v1/invoices/{id}  # Delete invoice
-```
-
-## 🤖 AI-Powered Development (Simplified)
-
-### Claude Integration Only
-
-We streamlined to focus on what adds real value: **AI-assisted learning**.
-
-**Current Workflows:**
-
-**1. Interactive Claude** (`claude.yml`):
-- Mention `@claude` in issues/PRs for help
-- Get explanations, suggestions, code reviews
-- Available 24/7 for learning support
-
-**2. Automated Code Review** (`claude-code-review.yml`):
-- Automatic review on every pull request
-- Focuses on Go best practices
-- Provides learning feedback
-- No CI dependency - pure code review
-
-**Benefits:**
-- Learn Go patterns through AI feedback
-- Get instant help with `@claude` mentions
-- Consistent code quality
-- Zero infrastructure maintenance
-
-**Removed Complexity:**
-- ❌ Complex CI pipelines
-- ❌ Dependency update automation
-- ❌ Security scanning workflows
-- ❌ Deployment automation
-
-**Lesson**: Focus on AI assistance that helps learning, remove automation that creates maintenance overhead.
-
-## 🛠️ Developer Experience
-
-### Scripts Directory (Local Development)
-
-The `scripts/` directory provides consistent development commands:
-
-**Build & Test:**
+**Health Check:**
 ```bash
-./scripts/build.sh         # Build both binaries to bin/
-./scripts/test.sh          # Run tests with coverage
-./scripts/test-unit.sh     # Quick unit tests only
+curl http://localhost:8080/health
+# Returns: {"status":"healthy","service":"billing-api","domain":"billing"}
 ```
 
-**Code Quality:**
-```bash
-./scripts/lint.sh          # Run go fmt, go vet, golangci-lint
+**Billing Endpoints:**
+```
+GET    /health                      # Health check with domain info
+GET    /api/v1/clients             # List billing clients  
+POST   /api/v1/clients             # Create billing client
+GET    /api/v1/clients/{id}        # Get billing client
+PUT    /api/v1/clients/{id}        # Update billing client
+DELETE /api/v1/clients/{id}        # Delete billing client
+GET    /api/v1/invoices            # List invoices
+POST   /api/v1/invoices            # Create invoice
+GET    /api/v1/invoices/{id}       # Get invoice
+PUT    /api/v1/invoices/{id}       # Update invoice
+DELETE /api/v1/invoices/{id}       # Delete invoice
 ```
 
-**Docker:**
-```bash
-./scripts/docker-build.sh  # Build both Docker images locally
-./scripts/clean.sh         # Clean artifacts and images
+### Future: Catalog Service (Port 8081)
+
+When implemented, the catalog service will have its own API:
+
+**Catalog Endpoints:**
+```
+GET    /health                      # Health check (catalog domain)
+GET    /api/v1/products            # List catalog products
+POST   /api/v1/products            # Create product
+GET    /api/v1/categories          # List categories
+POST   /api/v1/categories          # Create category
 ```
 
-**Setup:**
-```bash
-./scripts/dev-setup.sh     # Install tools, test build
+## ⚙️ Configuration Management (Domain-First)
+
+### Hierarchical Configuration Loading
+
+Each domain loads configuration in this order:
+1. **Base defaults** (`config/base/base.yaml`)
+2. **Base environment** (`config/base/{env}.yaml`)
+3. **Domain defaults** (`config/{domain}/{domain}.yaml`)
+4. **Domain environment** (`config/{domain}/{env}.yaml`)
+5. **Environment variables** (`{DOMAIN}_*`)
+
+### Billing Domain Configuration
+
+```yaml
+# config/billing/billing.yaml
+database:
+  name: "gotuto"
+  schema: "billing"              # Schema isolation
+  username: "billing_app"        # Domain-specific user
+
+pagination:
+  default_limit: 10
+  max_limit: 100
+
+invoice:
+  number_prefix: "INV"
+  default_currency: "USD"
 ```
 
-### Makefile (Familiar Interface)
+### Catalog Domain Configuration
 
-For developers who prefer make:
-```bash
-make build    # Same as ./scripts/build.sh
-make test     # Same as ./scripts/test.sh
-make lint     # Same as ./scripts/lint.sh
-make docker   # Same as ./scripts/docker-build.sh
-make clean    # Same as ./scripts/clean.sh
+```yaml
+# config/catalog/catalog.yaml  
+database:
+  name: "gotuto"
+  schema: "catalog"              # Schema isolation
+  username: "catalog_app"        # Domain-specific user
+
+pagination:
+  default_limit: 20
+  max_limit: 50
+
+product:
+  sku_prefix: "SKU"
+  default_currency: "USD"
 ```
 
-### Why Scripts + Makefile?
+### Environment Variables
 
-**Benefits:**
-- **Consistency**: Same commands work for all developers
-- **Speed**: No need to push to GitHub to test changes
-- **Documentation**: Scripts serve as executable documentation
-- **CI Simulation**: Run the same checks locally
-- **Onboarding**: New developers can start immediately
-
-## ⚙️ Configuration Management
-
-Hierarchical configuration using Viper:
-
-1. **Default values** (in code)
-2. **Config files** (`config/config.yaml`)
-3. **Environment variables** (prefixed `BILLING_`)
-4. **Command line flags**
-
-### Key Environment Variables
-
+**Billing Domain:**
 ```bash
-# Server Configuration
-BILLING_SERVER_PORT=8080
-
-# Database Configuration  
 BILLING_DATABASE_HOST=localhost
-BILLING_DATABASE_PORT=5432
-BILLING_DATABASE_USERNAME=postgres
-BILLING_DATABASE_PASSWORD=password
-BILLING_DATABASE_NAME=billing
-BILLING_DATABASE_SSL_MODE=disable
-
-# Application Configuration
-BILLING_LOG_LEVEL=info
-APP_ENV=development
+BILLING_DATABASE_PASSWORD=secret
+BILLING_SERVER_PORT=8080
+BILLING_PAGINATION_DEFAULT_LIMIT=10
 ```
 
-## 🐳 Container Support
+**Catalog Domain:**
+```bash
+CATALOG_DATABASE_HOST=localhost
+CATALOG_DATABASE_PASSWORD=secret
+CATALOG_SERVER_PORT=8081
+CATALOG_PAGINATION_DEFAULT_LIMIT=20
+```
 
-### Two Services, Two Images
+## 🐳 Container Support (Domain-Aware)
 
-Following Go conventions with root-level Dockerfiles:
+### Domain-Specific Images
 
 ```bash
-# Build both images locally
+# Build domain-specific images
 ./scripts/docker-build.sh
 
 # Or manually:
 docker build -f billing-api.Dockerfile -t billing-api:local .
 docker build -f billing-migrator.Dockerfile -t billing-migrator:local .
 
-# Run API container
+# Run billing API
 docker run -p 8080:8080 \
   -e BILLING_DATABASE_HOST=host.docker.internal \
-  -e BILLING_DATABASE_PASSWORD=password \
+  -e BILLING_DATABASE_PASSWORD=secret \
   billing-api:local
+
+# Run billing migrations
+docker run \
+  -e BILLING_DATABASE_HOST=host.docker.internal \
+  -e BILLING_DATABASE_PASSWORD=secret \
+  billing-migrator:local up
 ```
 
-**Container Features:**
-- Red Hat UBI base images (enterprise-ready)
-- Non-root user (security)
-- Optimized for OpenShift/Kubernetes
-- Independent versioning per service
+## 🤖 AI-Powered Development
+
+### Claude Integration
+
+**Interactive Claude:**
+- Mention `@claude` in issues/PRs for domain-specific help
+- Get explanations about DDD patterns
+- Learn Go idioms and best practices
+
+**Automated Code Review:**
+- Reviews focus on domain separation
+- Validates DDD principles
+- Suggests improvements for configuration architecture
 
 ## 🎓 Learning Resources
 
-### Go Concepts Demonstrated
+### Domain-Driven Design Concepts
 
-**Core Language:**
-- Package organization and Go modules
-- Error handling patterns (`if err != nil`)
-- Interfaces and composition (no inheritance)
-- Struct methods and receivers
-- Short variable declaration (`:=`)
+**Key DDD Patterns Demonstrated:**
 
-**Domain-Driven Design:**
-- Domain vs Infrastructure separation
-- Entity and value object patterns
-- Repository interfaces
-- Application services
+| DDD Concept | Implementation | Location |
+|------------|----------------|----------|
+| **Bounded Context** | Complete domain isolation | `internal/billing/` vs `internal/catalog/` |
+| **Ubiquitous Language** | Domain-specific models | `internal/billing/models/` |
+| **Aggregate Root** | Client, Invoice entities | `models/client.go`, `models/invoice.go` |
+| **Repository Pattern** | Data access interfaces | `repositories/` (planned) |
+| **Domain Services** | Business logic | `services/` (planned) |
+| **Application Services** | HTTP handlers | `api/client.go`, `api/invoice.go` |
+| **Infrastructure** | Database, config | `database/`, `config/` |
 
-**Web Development:**
-- HTTP handlers and routing (Gin)
-- JSON marshaling/unmarshaling
-- Middleware patterns
-- Request validation
+### Configuration Architecture Benefits
 
-**Database Integration:**
-- ORM patterns with GORM
-- Connection management
-- Configuration-based connections
+**For .NET Developers:**
 
-**Testing:**
-- Table-driven tests (Go idiom)
-- Test organization and structure
-- Coverage measurement
-
-**DevOps:**
-- Container deployment
-- Configuration management
-- AI-powered development workflow
-
-### Notes for .NET Developers
-
-Key differences when coming from .NET:
-
-| .NET Concept | Go Equivalent | Notes |
+| .NET Pattern | Go Equivalent | Notes |
 |-------------|---------------|--------|
-| **Solution (.sln)** | **Repository** | Multiple Go modules in one repo |
-| **Project (.csproj)** | **Go Module (go.mod)** | Single module in this project |
-| **Class** | **Struct + methods** | No inheritance, use composition |
-| **try/catch** | **Explicit error returns** | `if err != nil { return err }` |
-| **null** | **Zero values** | Prefer zero values over pointers |
-| **NuGet** | **Go modules** | Simpler dependency management |
-| **MSBuild** | **go build** | No complex build configuration |
-| **LINQ** | **Manual iteration** | More explicit, less magic |
-| **Entity Framework** | **GORM** | Similar ORM patterns |
+| **appsettings.json** | `config/{domain}/{domain}.yaml` | Domain-specific configs |
+| **IConfiguration** | `config.Load()` | Type-safe config loading |
+| **Environment-specific configs** | `config/{domain}/{env}.yaml` | Hierarchical overrides |
+| **IOptions<T>** | Domain config structs | Strongly-typed configuration |
 
-### Domain-Driven Design Comparison
+### Database Schema Strategy
 
-| DDD Concept | .NET Implementation | Go Implementation |
-|------------|-------------------|------------------|
-| **Domain Layer** | `Domain` assembly | `internal/billing/` |
-| **Application Layer** | `Application` assembly | `internal/billing/api/` |
-| **Infrastructure** | `Infrastructure` assembly | `internal/billing-migration/` |
-| **Bounded Context** | Separate projects/solutions | Clear package boundaries |
+**Coming from .NET/SQL Server:**
 
-## 📚 Documentation and Learning Notes
+| .NET Pattern | Go/PostgreSQL Pattern | Benefits |
+|-------------|---------------------|----------|
+| **Separate Databases** | **Single DB, Multiple Schemas** | Simpler ops, logical separation |
+| **ConnectionStrings** | **Schema-aware DSN** | search_path enforces boundaries |
+| **EF DbContext per domain** | **GORM DB per schema** | Domain isolation maintained |
+| **SQL Users per app** | **PostgreSQL users per domain** | Database-level security |
 
-### Learning Documentation
-- `notes/packages-vs-modules.md` - Go project organization
-- `notes/short-variable-declaration.md` - `:=` operator usage
-- `notes/functions-comprehensive.md` - Go functions and error handling
-- `notes/claude-github-integration.md` - AI-powered development workflow
-- `notes/branch-protection-setup.md` - Manual branch protection guide
+## 📚 Learning Path
 
-### Development Workflow
+### 1. Master Domain Separation
+```bash
+# Explore billing domain
+ls internal/billing/
+cat config/billing/billing.yaml
 
-1. **Create feature branch**:
-   ```bash
-   git checkout -b feature/new-feature
-   ```
+# See how config loading works
+go run -c "
+  cfg, _ := billing.Load()
+  fmt.Printf('Schema: %s', cfg.Database.Schema)
+"
+```
 
-2. **Develop and test locally**:
-   ```bash
-   ./scripts/test-unit.sh  # Fast feedback loop
-   ./scripts/build.sh      # Test build
-   ./bin/billing-api       # Test manually
-   ```
+### 2. Understand Schema Isolation
+```bash
+# Connect to billing schema
+BILLING_DATABASE_SCHEMA=billing ./bin/billing-migrator version
 
-3. **Create pull request**:
-   - Claude provides automatic code review
-   - Learn from AI feedback
-   - Merge after review
+# Connect to catalog schema  
+CATALOG_DATABASE_SCHEMA=catalog ./bin/catalog-migrator version
+```
 
-4. **Learn from feedback**:
-   - Review Claude's suggestions
-   - Ask questions with `@claude` mentions
-   - Document new patterns learned
+### 3. Practice Adding Domains
+```bash
+# Add a new domain (e.g., inventory)
+mkdir -p internal/inventory/{config,migrations,models,api}
+mkdir -p config/inventory
+
+# Follow the billing domain pattern
+cp -r internal/billing/* internal/inventory/
+# Adapt for inventory domain...
+```
 
 ## 🔍 Troubleshooting
 
-### Common Issues
+### Domain Configuration Issues
 
-**1. Scripts not executable**
+**1. Wrong schema accessed**
 ```bash
-chmod +x scripts/*.sh
+# Check DSN includes search_path
+APP_ENV=dev go run -c "
+  cfg, _ := billing.Load()
+  fmt.Println(cfg.Database.GetDSN())
+"
+# Should include: search_path=billing
 ```
 
-**2. Tests fail with import errors**
+**2. Config not loading**
 ```bash
-go mod tidy
-go clean -modcache
+# Verify config file structure
+ls config/billing/
+cat config/billing/billing.yaml
+
+# Test environment loading
+APP_ENV=dev go run -c "
+  cfg, _ := billing.Load()
+  fmt.Printf('Loaded from: %s\n', cfg.Database.Name)
+"
 ```
 
-**3. Build fails with "command not found"**
+**3. Cross-domain access**
 ```bash
-# Run from project root
-cd GoTuto
-./scripts/build.sh
+# This should fail (good!)
+psql -U billing_app -d gotuto_dev -c "SELECT * FROM catalog.products;"
+# ERROR: permission denied for schema catalog
 ```
-
-**4. Claude review doesn't run**
-- Claude runs on every PR automatically
-- Check GitHub Actions tab for status
-- Try mentioning `@claude` for interactive help
-
-**5. Can't find binaries after build**
-```bash
-# Binaries are in bin/ directory
-ls bin/
-./bin/billing-api
-./bin/billing-migrator
-```
-
-### Getting Help
-
-1. **Check scripts output**: Scripts provide helpful error messages
-2. **Use `@claude` mentions**: Ask specific questions in issues/PRs
-3. **Review notes**: Check `notes/` directory for specific topics
-4. **Test locally first**: `./scripts/test-unit.sh` for quick validation
 
 ## 🎯 Next Steps
 
-### Immediate Learning Goals
-1. **Master Go basics**: Complete examples in `notes/`
-2. **Practice DDD**: Add new domain concepts (products, orders)
-3. **Understand testing**: Write unit tests for new features
-4. **Learn from AI feedback**: Create PRs and review Claude's suggestions
+### Adding the Catalog Domain (Complete DDD Exercise)
 
-### When Ready to Add Complexity
-1. **Integration tests**: When comfortable with unit testing
-2. **CI/CD pipeline**: When local development is smooth
-3. **Authentication**: JWT or session-based auth
-4. **More services**: Split into multiple repositories
-5. **Advanced patterns**: CQRS, Event Sourcing
+1. **Implement Catalog Models**:
+   ```bash
+   # Create product and category entities
+   touch internal/catalog/models/{product,category,brand}.go
+   ```
+
+2. **Add Catalog API**:
+   ```bash
+   # Implement CRUD endpoints
+   touch internal/catalog/api/{product,category}.go
+   ```
+
+3. **Create Catalog API Service**:
+   ```bash
+   # New binary for catalog domain
+   mkdir cmd/catalog-api
+   touch cmd/catalog-api/main.go
+   ```
+
+4. **Test Domain Isolation**:
+   ```bash
+   # Verify no cross-domain imports
+   go mod graph | grep "billing.*catalog\|catalog.*billing"
+   # Should return nothing
+   ```
 
 ### Architecture Evolution Path
+
 ```
-Current: Single Module           →    Future: Multiple Repos
-├── internal/billing/           →    billing-api/
-├── internal/billing-migration/ →    billing-migrations/
-└── internal/shared/            →    shared-library/
+Current: Domain-First Monolith    →    Future: Domain-Based Microservices
+├── config/billing/              →    billing-service/config/
+├── internal/billing/            →    billing-service/internal/
+├── config/catalog/              →    catalog-service/config/
+└── internal/catalog/            →    catalog-service/internal/
 ```
 
-### Advanced Topics to Explore Later
-- Goroutines and channels (concurrency)
-- Advanced database patterns (CQRS, Event Sourcing)
-- Microservices communication
-- Performance optimization
-- Security hardening
+### Advanced DDD Patterns to Explore
+
+1. **Domain Events**: Inter-domain communication
+2. **CQRS**: Separate read/write models
+3. **Event Sourcing**: Event-based state changes
+4. **Saga Pattern**: Cross-domain transactions
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Write unit tests for new functionality: `./scripts/test-unit.sh`
-4. Ensure all checks pass: `./scripts/lint.sh`
-5. Commit with descriptive messages
-6. Push and create pull request
-7. Learn from Claude's automatic code review feedback
+2. Create a feature branch: `git checkout -b feature/catalog-products`
+3. **Follow domain boundaries**: Keep changes within single domain
+4. Write domain-specific tests: `go test ./internal/catalog/...`
+5. Ensure configuration loading works: Test with different environments
+6. Commit with domain prefix: `git commit -m "catalog: add product model"`
+7. Create pull request and learn from Claude's DDD feedback
 
-## 📖 Philosophy: Simplicity Through Experience
+## 📖 Philosophy: Domain-First Development
 
-This project embodies a key software development principle:
+This project demonstrates enterprise-grade Domain-Driven Design in Go:
 
-> **"Make it work, make it right, make it fast"** - Kent Beck
+### Core Principles Applied
 
-### Our Learning Journey
+✅ **Bounded Contexts**: Each domain has complete isolation
+✅ **Ubiquitous Language**: Domain-specific models and terminology  
+✅ **Schema Separation**: Database-level domain boundaries
+✅ **Configuration Isolation**: Domain-first config management
+✅ **Developer Experience**: Cognitive load reduction through co-location
 
-**Started with enterprise complexity:**
-- Complex CI/CD pipelines
-- Integration and E2E tests
-- Multiple automated workflows
-- Over-engineered architecture
+### Key Lessons for .NET Developers
 
-**Learned to embrace simplicity:**
-- ✅ Working unit tests > Complex integration tests
-- ✅ Local scripts > Complex CI pipelines
-- ✅ Manual setup > Unreliable automation  
-- ✅ Domain separation > Microservices complexity
-- ✅ AI assistance > Human code review bottlenecks
+1. **Go's simplicity enables DDD**: Less ceremony, clearer domain focus
+2. **Schema separation > microservices**: Start with logical boundaries
+3. **Configuration co-location**: Domain owns all its concerns
+4. **Database-level RBAC**: Security through isolation
+5. **Migration per domain**: Independent evolution paths
 
-**Current sweet spot:**
-- Simple structure that scales
-- Fast local development
-- AI-powered learning
-- Domain-driven design foundations
+### When to Extract to Microservices
 
-### Key Lessons Learned
+🟢 **Stay monolithic when:**
+- Domains fit in single database
+- Team is small (< 10 developers)
+- Deployment complexity isn't justified
 
-1. **Start simple**: Complex solutions often solve problems you don't have yet
-2. **Test what matters**: Unit tests provide better ROI than complex integration tests
-3. **Local first**: Optimize for local development speed over CI complexity
-4. **AI-assisted learning**: Claude provides better, faster feedback than traditional code review
-5. **Domain focus**: Good architecture emerges from understanding the domain, not following patterns
+🔴 **Extract to microservices when:**
+- Domain teams are independent
+- Different scaling requirements
+- Technology diversity needed
 
-**Remember**: Begin with the minimum viable solution, then add complexity incrementally based on real needs, not imagined requirements.
+**Remember**: Good domain boundaries in a monolith become good service boundaries in microservices.
 
 ---
 
-## 🚀 Happy Go Learning!
+## 🚀 Happy Domain-Driven Go Learning!
 
-This project demonstrates that learning enterprise development doesn't require enterprise complexity from day one. 
+This project demonstrates that learning DDD doesn't require microservices complexity from day one. 
 
-**Start simple → Learn from real challenges → Grow skills gradually → Scale when needed**
+**Start with domains → Add boundaries → Scale when needed**
 
 The combination of:
-- **Domain-Driven Design** (good structure)
-- **Go conventions** (idiomatic code)  
-- **AI assistance** (continuous learning)
-- **Local-first development** (fast feedback)
+- **True Domain Separation** (clear boundaries)
+- **Schema-Based Isolation** (database-level security)
+- **Domain-First Configuration** (developer experience)
+- **Go Simplicity** (focus on domain, not framework)
 
-...creates an excellent environment for mastering Go and modern software development practices.
+...creates an excellent environment for mastering both Go and Domain-Driven Design.
 
-**Questions?** Create an issue or mention `@claude` in a pull request - AI assistance is always available!
+**Questions about DDD patterns?** Create an issue or mention `@claude` in a pull request - AI assistance with domain modeling is always available!

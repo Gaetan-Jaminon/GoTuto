@@ -1,0 +1,23 @@
+database:
+  name: "gotuto"
+  schema: "billing"
+  username: "billing_app"
+  password: "billing_pass"
+
+migration:
+  username: "billing_migrator"
+  password: "billing_migrate_pass"
+  schema: "billing"
+
+pagination:
+  default_limit: 10
+  max_limit: 100
+
+invoice:
+  number_prefix: "INV"
+  default_currency: "USD"
+  payment_terms_days: 30
+
+client:
+  require_email_verification: false
+  max_name_length: 100

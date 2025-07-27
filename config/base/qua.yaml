@@ -1,0 +1,20 @@
+server:
+  mode: "release"
+  port: 8080
+  read_timeout: 15s
+  write_timeout: 15s
+
+database:
+  ssl_mode: "prefer"
+  max_open_conns: 50
+  max_idle_conns: 10
+  conn_max_lifetime: 30m
+
+logging:
+  level: "info"
+  format: "json"
+
+cors:
+  allowed_origins:
+    - "https://qa.yourdomain.com"
+    - "http://localhost:3000"

@@ -1,0 +1,10 @@
+database:
+  name: "gotuto_dev"
+  password: "postgres"
+
+migration:
+  password: "postgres"
+
+product:
+  sku_prefix: "DEV-SKU"
+  allow_zero_price: true

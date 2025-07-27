@@ -1,0 +1,10 @@
+database:
+  name: "gotuto_prd"
+  password: "${BILLING_DB_PASSWORD}"
+
+migration:
+  password: "${BILLING_MIGRATE_PASSWORD}"
+
+pagination:
+  default_limit: 20
+  max_limit: 100
