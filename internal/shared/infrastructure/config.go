@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -33,7 +34,7 @@ func LoadDomainConfig[T any](domainName string, envPrefix string) (*T, error) {
 	v.SetConfigName(env)
 	v.SetConfigFile(fmt.Sprintf("./config/base/%s.yaml", env))
 	if err := v.MergeInConfig(); err != nil {
-		// Ignore error - environment override is optional
+		log.Printf("Base environment config not found for %s: %v (this is optional)", env, err)
 	}
 
 	// 3. Load domain defaults
@@ -47,7 +48,7 @@ func LoadDomainConfig[T any](domainName string, envPrefix string) (*T, error) {
 	v.SetConfigName(env)
 	v.SetConfigFile(fmt.Sprintf("./config/%s/%s.yaml", domainName, env))
 	if err := v.MergeInConfig(); err != nil {
-		// Ignore error - environment override is optional
+		log.Printf("Domain environment config not found for %s/%s: %v (this is optional)", domainName, env, err)
 	}
 
 	// 5. Environment variables with domain-specific prefix

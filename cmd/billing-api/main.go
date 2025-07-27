@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
+	"time"
 	
 	"gaetanjaminon/GoTuto/internal/billing/config"
 	"gaetanjaminon/GoTuto/internal/billing/database"
 	"gaetanjaminon/GoTuto/internal/billing/api"
 	
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -34,7 +37,7 @@ func main() {
 	}
 	
 	// Set up router
-	router := setupRouter(cfg)
+	router := setupRouter(cfg, db)
 	
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
@@ -44,7 +47,7 @@ func main() {
 	}
 }
 
-func setupRouter(cfg *config.BillingConfig) *gin.Engine {
+func setupRouter(cfg *config.BillingConfig, db *gorm.DB) *gin.Engine {
 	// Set Gin mode based on config
 	gin.SetMode(cfg.Server.Mode)
 	
@@ -82,13 +85,43 @@ func setupRouter(cfg *config.BillingConfig) *gin.Engine {
 		c.Next()
 	})
 	
-	// Health check endpoint
+	// Health check endpoint with database connectivity
 	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
+		health := gin.H{
 			"status":  "healthy",
 			"service": "billing-api",
 			"domain":  "billing",
-		})
+		}
+
+		// Check database connectivity
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		if err := db.WithContext(ctx).Exec("SELECT 1").Error; err != nil {
+			health["status"] = "unhealthy"
+			health["database_error"] = err.Error()
+			c.JSON(503, health)
+			return
+		}
+
+		// Check if we can access the billing schema
+		var schemaExists bool
+		query := "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'billing')"
+		if err := db.WithContext(ctx).Raw(query).Scan(&schemaExists).Error; err != nil {
+			health["status"] = "degraded"
+			health["schema_warning"] = "Cannot verify billing schema: " + err.Error()
+			c.JSON(200, health)
+			return
+		}
+
+		if !schemaExists {
+			health["status"] = "degraded"
+			health["schema_warning"] = "Billing schema does not exist"
+		}
+
+		health["database"] = "connected"
+		health["schema"] = "billing"
+		c.JSON(200, health)
 	})
 	
 	// API routes

@@ -7,16 +7,17 @@ import (
 
 // DatabaseConfig holds database-related configuration
 type DatabaseConfig struct {
-	Host            string        `mapstructure:"host"`
-	Port            int           `mapstructure:"port"`
-	Username        string        `mapstructure:"username"`
-	Password        string        `mapstructure:"password"`
-	Name            string        `mapstructure:"name"`
-	Schema          string        `mapstructure:"schema"`
-	SSLMode         string        `mapstructure:"ssl_mode"`
-	MaxOpenConns    int           `mapstructure:"max_open_conns"`
-	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
-	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
+	Host              string        `mapstructure:"host"`
+	Port              int           `mapstructure:"port"`
+	Username          string        `mapstructure:"username"`
+	Password          string        `mapstructure:"password"`
+	Name              string        `mapstructure:"name"`
+	Schema            string        `mapstructure:"schema"`
+	SSLMode           string        `mapstructure:"ssl_mode"`
+	MaxOpenConns      int           `mapstructure:"max_open_conns"`
+	MaxIdleConns      int           `mapstructure:"max_idle_conns"`
+	ConnMaxLifetime   time.Duration `mapstructure:"conn_max_lifetime"`
+	ConnectionTimeout time.Duration `mapstructure:"connection_timeout"`
 }
 
 // GetDSN returns PostgreSQL connection string with schema support

@@ -13,8 +13,6 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-var DB *gorm.DB
-
 func Connect(cfg *config.BillingConfig) (*gorm.DB, error) {
 	// Get DSN from config with schema isolation
 	dsn := cfg.Database.GetDSN()
@@ -48,16 +46,17 @@ func Connect(cfg *config.BillingConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
 
-	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Test connection with configurable timeout
+	timeout := cfg.Database.ConnectionTimeout
+	if timeout == 0 {
+		timeout = 5 * time.Second // Default fallback
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	if err := db.WithContext(ctx).Exec("SELECT 1").Error; err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
-
-	// Store globally for easy access
-	DB = db
 
 	log.Printf("Billing database connected successfully to %s:%d/%s (schema: %s)",
 		cfg.Database.Host, cfg.Database.Port, cfg.Database.Name, cfg.Database.Schema)
