@@ -1,0 +1,9 @@
+database:
+  name: "gotuto_prd"
+  password: "${CATALOG_DB_PASSWORD}"
+
+migration:
+  password: "${CATALOG_MIGRATE_PASSWORD}"
+
+product:
+  allow_zero_price: false

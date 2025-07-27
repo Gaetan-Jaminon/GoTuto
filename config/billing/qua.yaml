@@ -1,0 +1,9 @@
+database:
+  name: "gotuto_qua"
+  password: "${BILLING_DB_PASSWORD}"
+
+migration:
+  password: "${BILLING_MIGRATE_PASSWORD}"
+
+pagination:
+  max_limit: 50

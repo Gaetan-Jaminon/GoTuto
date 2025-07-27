@@ -1,0 +1,23 @@
+database:
+  name: "gotuto"
+  schema: "catalog"
+  username: "catalog_app"
+  password: "catalog_pass"
+
+migration:
+  username: "catalog_migrator"
+  password: "catalog_migrate_pass"
+  schema: "catalog"
+
+pagination:
+  default_limit: 20
+  max_limit: 50
+
+product:
+  sku_prefix: "SKU"
+  default_currency: "USD"
+  allow_zero_price: false
+
+category:
+  max_depth: 5
+  allow_circular_refs: false

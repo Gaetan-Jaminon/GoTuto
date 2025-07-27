@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 	
-	config "gaetanjaminon/GoTuto/internal/shared"
+	"gaetanjaminon/GoTuto/internal/billing/config"
 	"gaetanjaminon/GoTuto/internal/billing/database"
 	"gaetanjaminon/GoTuto/internal/billing/api"
 	
@@ -13,9 +13,14 @@ import (
 )
 
 func main() {
-	// Load configuration
+	// Load billing domain configuration
 	cfg := config.MustLoad()
-	cfg.Print() // Log configuration (without sensitive data)
+	
+	log.Println("=== Billing Service Configuration ===")
+	log.Printf("Server: Port=%d, Mode=%s", cfg.Server.Port, cfg.Server.Mode)
+	log.Printf("Database: Host=%s:%d, Name=%s, Schema=%s, User=%s", 
+		cfg.Database.Host, cfg.Database.Port, cfg.Database.Name, cfg.Database.Schema, cfg.Database.Username)
+	log.Printf("Logging: Level=%s, Format=%s", cfg.Logging.Level, cfg.Logging.Format)
 	
 	// Connect to database
 	db, err := database.Connect(cfg)
@@ -39,7 +44,7 @@ func main() {
 	}
 }
 
-func setupRouter(cfg *config.Config) *gin.Engine {
+func setupRouter(cfg *config.BillingConfig) *gin.Engine {
 	// Set Gin mode based on config
 	gin.SetMode(cfg.Server.Mode)
 	
@@ -81,7 +86,8 @@ func setupRouter(cfg *config.Config) *gin.Engine {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "healthy",
-			"service": "demo01-api",
+			"service": "billing-api",
+			"domain":  "billing",
 		})
 	})
 	

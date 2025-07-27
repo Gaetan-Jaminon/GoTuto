@@ -1,0 +1,9 @@
+database:
+  name: "gotuto_dev"
+  password: "postgres"
+
+migration:
+  password: "postgres"
+
+invoice:
+  number_prefix: "DEV-INV"

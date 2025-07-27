@@ -15,9 +15,9 @@ import (
 var (
 	cfgFile string
 	rootCmd = &cobra.Command{
-		Use:   "billing-migrator",
-		Short: "Database migration tool for billing service",
-		Long:  `A CLI tool to manage database migrations for the billing service.`,
+		Use:   "catalog-migrator",
+		Short: "Database migration tool for catalog service",
+		Long:  `A CLI tool to manage database migrations for the catalog service.`,
 	}
 )
 
@@ -27,11 +27,11 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./config.yaml)")
 	rootCmd.PersistentFlags().String("db-host", "localhost", "Database host")
 	rootCmd.PersistentFlags().Int("db-port", 5432, "Database port")
-	rootCmd.PersistentFlags().String("db-user", "postgres", "Database user")
+	rootCmd.PersistentFlags().String("db-user", "catalog_migrator", "Database user")
 	rootCmd.PersistentFlags().String("db-password", "", "Database password")
-	rootCmd.PersistentFlags().String("db-name", "billing", "Database name")
+	rootCmd.PersistentFlags().String("db-name", "gotuto", "Database name")
 	rootCmd.PersistentFlags().String("db-sslmode", "disable", "Database SSL mode")
-	rootCmd.PersistentFlags().String("migrations-path", "./internal/billing/migrations", "Path to billing migrations directory")
+	rootCmd.PersistentFlags().String("migrations-path", "./internal/catalog/migrations", "Path to catalog migrations directory")
 	
 	// Bind flags to viper
 	viper.BindPFlag("database.host", rootCmd.PersistentFlags().Lookup("db-host"))
@@ -51,7 +51,7 @@ func init() {
 var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Apply all pending migrations",
-	Long:  `Apply all pending database migrations to bring the database schema up to date.`,
+	Long:  `Apply all pending database migrations to bring the catalog schema up to date.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		m, err := getMigrate()
 		if err != nil {
@@ -65,13 +65,13 @@ var upCmd = &cobra.Command{
 		
 		version, dirty, _ := m.Version()
 		if err == migrate.ErrNoChange {
-			fmt.Printf("Database is already up to date at version %d\n", version)
+			fmt.Printf("Catalog schema is already up to date at version %d\n", version)
 		} else {
-			fmt.Printf("Successfully applied migrations to version %d\n", version)
+			fmt.Printf("Successfully applied catalog migrations to version %d\n", version)
 		}
 		
 		if dirty {
-			fmt.Println("WARNING: Database is in dirty state")
+			fmt.Println("WARNING: Catalog schema is in dirty state")
 		}
 	},
 }
@@ -79,7 +79,7 @@ var upCmd = &cobra.Command{
 var downCmd = &cobra.Command{
 	Use:   "down",
 	Short: "Rollback migrations",
-	Long:  `Rollback database migrations. Use --steps to specify number of migrations to rollback.`,
+	Long:  `Rollback catalog database migrations. Use --steps to specify number of migrations to rollback.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		steps, _ := cmd.Flags().GetInt("steps")
 		
@@ -91,26 +91,26 @@ var downCmd = &cobra.Command{
 		
 		if steps > 0 {
 			if err := m.Steps(-steps); err != nil && err != migrate.ErrNoChange {
-				log.Fatalf("Failed to rollback %d migrations: %v", steps, err)
+				log.Fatalf("Failed to rollback %d catalog migrations: %v", steps, err)
 			}
-			fmt.Printf("Successfully rolled back %d migrations\n", steps)
+			fmt.Printf("Successfully rolled back %d catalog migrations\n", steps)
 		} else {
 			// Default: rollback 1 migration
 			if err := m.Steps(-1); err != nil && err != migrate.ErrNoChange {
-				log.Fatal("Failed to rollback migration:", err)
+				log.Fatal("Failed to rollback catalog migration:", err)
 			}
-			fmt.Println("Successfully rolled back 1 migration")
+			fmt.Println("Successfully rolled back 1 catalog migration")
 		}
 		
 		version, dirty, _ := m.Version()
 		if version > 0 {
-			fmt.Printf("Current version: %d\n", version)
+			fmt.Printf("Current catalog version: %d\n", version)
 		} else {
-			fmt.Println("Database has no migrations applied")
+			fmt.Println("Catalog schema has no migrations applied")
 		}
 		
 		if dirty {
-			fmt.Println("WARNING: Database is in dirty state")
+			fmt.Println("WARNING: Catalog schema is in dirty state")
 		}
 	},
 }
@@ -118,7 +118,7 @@ var downCmd = &cobra.Command{
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Show current migration version",
-	Long:  `Display the current migration version and dirty state of the database.`,
+	Long:  `Display the current migration version and dirty state of the catalog schema.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		m, err := getMigrate()
 		if err != nil {
@@ -128,10 +128,10 @@ var versionCmd = &cobra.Command{
 		
 		version, dirty, err := m.Version()
 		if err != nil {
-			log.Fatal("Failed to get version:", err)
+			log.Fatal("Failed to get catalog version:", err)
 		}
 		
-		fmt.Printf("Current version: %d\n", version)
+		fmt.Printf("Current catalog version: %d\n", version)
 		if dirty {
 			fmt.Println("Status: DIRTY")
 		} else {
@@ -154,8 +154,8 @@ func initConfig() {
 		viper.AddConfigPath("./config")
 	}
 	
-	// Environment variables with BILLING prefix
-	viper.SetEnvPrefix("BILLING")
+	// Environment variables with CATALOG prefix
+	viper.SetEnvPrefix("CATALOG")
 	viper.AutomaticEnv()
 	
 	// Read config file
@@ -165,7 +165,7 @@ func initConfig() {
 }
 
 func getMigrate() (*migrate.Migrate, error) {
-	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s&search_path=catalog",
 		viper.GetString("database.user"),
 		viper.GetString("database.password"),
 		viper.GetString("database.host"),
