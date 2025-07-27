@@ -15,7 +15,6 @@ import (
 	"gotuto/api/billing/internal/models"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"gorm.io/gorm"
 )
