@@ -6,6 +6,12 @@ bin/
 *.so
 *.dylib
 
+# Go binaries (prevent accidental commit of binaries at root)
+billing-api
+catalog-api
+billing-migrator
+catalog-migrator
+
 # Test and coverage files
 coverage.out
 coverage.html
